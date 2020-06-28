@@ -6,8 +6,6 @@ Game clips and screenshots can also be [shared](https://support.xbox.com/help/ga
 
 The goal of **xbox2local** is to make the process of saving your screenshots and game clips much faster: each time you run it, it detects all your media on Xbox Live that it hasn't saved before and copies it to a local folder of your choosing.
 
-TODO: Image showing Xbox storage >(automatic) Xbox Live >(xbox2local) local folder.
-
 
 ## Getting Started
 
@@ -22,17 +20,16 @@ TODO: Image showing Xbox storage >(automatic) Xbox Live >(xbox2local) local fold
 5. Clone this repository or download the latest [release](https://github.com/jdaymude/xbox2local/releases). Your directory structure will look like:
 ```
 xbox2local
-|---- ids.json
-|---- README.md
+|---- config.json
 |---- xbox2local.py
+|---- ...
 ```
 
-6. Open `ids.json` and copy your *API Key* and *Xbox Profile User ID* from your X API [profile page](https://xapi.us/profile) into the corresponding fields:
+6. Open `config.json`. Copy your *API Key* from your X API [profile page](https://xapi.us/profile) into the `xapi_key` field and set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
 ```
 {
-    "note": "Copy your X API key and Xbox user ID from https://xapi.us/profile here",
-    "xapi_key": "your X API key here",
-    "xuid": "your Xbox Profile User ID here"
+    "xapi_key": "your X API key from https://xapi.us/profile",
+    "media_dir": "folder to put your media"
 }
 ```
 
@@ -43,13 +40,11 @@ xbox2local
 
 **xbox2local** provides the following command line arguments:
 
-- `--ids_json <IDS_JSON>` allows you to specify an alternative JSON file to read your X API key and Xbox Profile User ID from, which is potentially useful if you have multiple accounts. The default is `ids.json`.
-
-- `--local_dir <LOCAL_DIR>` allows you to specify the local directory to download screenshots and game clips to (e.g., your OneDrive folder). The default is the `xbox2local` directory.
+- `--config <CONFIG>` allows you to specify an alternative JSON file to read your X API key and media directory from, which is potentially useful if you have multiple accounts. The default is `config.json`.
 
 - `--media_type {screenshots, gameclips, both}` allows you to specify whether to download only screenshots, only game clips, or both. The default is both.
 
-After running **xbox2local** at least once in which it succeeds in downloading your media, a `download_history.json` file will be created.
+After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.json` file will be created.
 This file stores the ID of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
 If for whatever reason you want to start fresh and redownload all possible media, simply delete/move this file.
 
@@ -59,44 +54,35 @@ If for whatever reason you want to start fresh and redownload all possible media
 **xbox2local** does its best to notify you if anything goes wrong when communicating with the X API or your Xbox Live account.
 Some common errors include:
 
-```
-ERROR 401: A fresh login is required to gain a new token from Microsoft
-```
-This means that the X API key and Xbox Profile User ID you provided are correct, but your Xbox Live login via X API has expired.
+#### ERROR 401: No API Key provided or invalid API Key
+
+This means that either you did not provide your X API key in `config.json` or the X API key you provided is incorrect.
+
+#### ERROR 401: A fresh login is required to gain a new token from Microsoft
+
+This means that the X API key you provided in `config.json` is good, but your Xbox Live login via X API has expired.
 This is easily fixed by signing into Xbox Live again on your X API [profile page](https://xapi.us/profile).
 
-```
-ERROR 401: No API Key provided or invalid API Key
-```
-This means that either you did not provide your X API key in `ids.json` or the X API key you provided is incorrect.
+#### ERROR 403: API Rate Limit Exceeded
 
-```
-ERROR: Expected xuid <expected xuid> but got <xuid>
-```
-This means that either you did not provide your Xbox Profile User ID in `ids.json` or the one you provided does not match the account associated with your X API key.
-
-```
-ERROR 403: API Rate Limit Exceeded
-```
 This means that you have made more calls to X API than your subscription plan allows.
 The free tier allows 60 requests per hour.
 TL;DR: this limit can be violated if you have a huge number of screenshots and game clips.
 This can potentially be circumvented by using the `--media_type` option to only download screenshots, waiting for the limit to reset in the next hour, and then using it again to only download game clips.
 
 In detail, **xbox2local** makes the following calls to X API each time it's run:
-- One call to the `/v2/accountxuid` endpoint to verify the given X API key and Xbox Profile User ID.
+- One call to the `/v2/accountxuid` endpoint to verify the given X API key and obtain your Xbox Profile User ID (xuid).
 - One call to the `/v2/{xuid}/screenshots` endpoint per page of screenshot results (X API uses pagination to ensure that no single request is too big).
-- One call to the `	/v2/{xuid}/game-clips` endpoint per page of game clip results.
+- One call to the `/v2/{xuid}/game-clips` endpoint per page of game clip results.
 
 Thus, if the total number of pages of results is greater than 60, this error will be raised and X API will stop serving results.
 See Issue [#3](https://github.com/jdaymude/xbox2local/issues/3) for further discussion.
 
-```
-No new screenshots or game clips to download
-```
+#### No new screenshots or game clips to download
+
 This message is expected behavior when there really isn't anything new to download.
 However, if you receive this message unexpectedly, check your *Settings > Preferences > Capture & Share > Automatically upload* settings on your Xbox.
-This should be set to something other than *Don't upload*; otherwise, all screenshots and game clips you capture stay on your Xbox's local storage and are not uploaded to Xbox Live, leaving them inaccessible to **xbox2local**.
+This should be set to something other than *Don't upload*; otherwise, all screenshots and game clips you capture stay on your Xbox's local storage and are not uploaded to Xbox Live, so **xbox2local** cannot access them.
 
 
 ## Contributing
