@@ -1,5 +1,6 @@
 # xbox2local specific files
-download_history.json
+history.json
+my_*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
