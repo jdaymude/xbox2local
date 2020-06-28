@@ -8,146 +8,148 @@ from datetime import datetime
 import json
 import os
 import os.path as osp
-import shutil
 import subprocess as sp
 import sys
 from tqdm import tqdm
 
 
+def make_xapi_call(xapi_key, endpoint):
+    """
+    Makes a call to X API using the specified X API key and endpoint. If the
+    request is successful, its output is returned as a dict and any
+    continuation token in its header is returned as a string. If unsuccessful,
+    the error code and message are displayed and the script exits.
+    """
+    # Make the X API call.
+    output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
+                     "https://xapi.us" + endpoint], capture_output=True).stdout
+    output = output.decode('utf-8').split('\r\n')
+    http_status = output[0].split()[1]
+    http_output = json.loads(output[-1])
+    if http_status != '200':
+        # Report any errors and quit.
+        tqdm.write('ERROR ' + http_status + ': ' + http_output['error_message'])
+        sys.exit()
+    else:
+        # Search for continuation token.
+        cont_token = ''
+        for line in output[0:-2]:
+            if 'continuationToken' in line:
+                cont_token = line.split()[-1]
+                break
+        # Return request output and the continuation token.
+        return http_output, cont_token
+
+
+def download_uri(uri, path, fname):
+    """
+    Downloads the content at the specified URI to {path}/{fname}.
+    """
+    os.makedirs(path, exist_ok=True)
+    sp.run(["wget", "-q", "-o", "/dev/null", "-O", osp.join(path, fname), uri])
+
+
 if __name__ == '__main__':
     # Parse command line arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ids_json', default='ids.json', \
-                        help='JSON file detailing your X API key and user ID')
-    parser.add_argument('--local_dir', default='.', \
-                        help='directory to download screenshots/game clips to')
+    parser.add_argument('--config', default='config.json', \
+                        help='JSON file with your X API key and media folder')
     parser.add_argument('--media_type', default='both', \
                         choices=['screenshots', 'gameclips', 'both'], \
                         help='download screenshots, game clips, or both')
     args = parser.parse_args()
 
     # Other core variables.
-    download_history_fname = 'download_history.json'
-    num_screens = 0
-    num_clips = 0
+    history_fname = 'history.json'
+    history = {'note' : 'These IDs have been downloaded previously', \
+               'screens': [], 'clips': []}
+    downloads = {'screens': [], 'clips': []}
 
-    # Load X API key and Xbox Profile User ID.
-    with open(args.ids_json) as f_in:
-        ids_json = json.load(f_in)
-        xapi_key = ids_json['xapi_key']
-        xuid = ids_json['xuid']
-
-    # Validate the given X API key and xuid and catch Xbox Live login errors.
-    output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
-                     "https://xapi.us/v2/accountxuid"], capture_output=True)
-    output = output.stdout.decode('utf-8').split('\r\n')
-    http_status = output[0].split()[1]
-    if http_status != '200':
-        error_json = json.loads(output[-1])
-        print('ERROR ' + str(error_json['error_code']) + ': ' + \
-              error_json['error_message'])
-        sys.exit()
-    else:
-        expected_xuid = str(json.loads(output[-1])['xuid'])
-        assert xuid == expected_xuid, \
-               "ERROR: Expected xuid " + expected_xuid + " but got " + xuid
-
-    # Ensure that the given local directory exists, and create it if not.
-    os.makedirs(args.local_dir, exist_ok=True)
+    # Load X API key, Xbox Profile User ID (xuid), and media directory.
+    with open(args.config) as f_in:
+        config = json.load(f_in)
+        xapi_key = config['xapi_key']
+        xuid = str(make_xapi_call(xapi_key, '/v2/accountxuid')[0]['xuid'])
+        media_dir = config['media_dir']
 
     # Load download history.
-    old_screen_ids = []
-    old_clip_ids = []
-    if osp.exists(download_history_fname):
-        with open(download_history_fname) as f_in:
-            download_history = json.load(f_in)
-            old_screen_ids = download_history['screenshots']
-            old_clip_ids = download_history['gameclips']
+    if osp.exists(history_fname):
+        with open(history_fname) as f_in:
+            history = json.load(f_in)
 
-    # Download new screenshots.
+    # Scan for new screenshots.
     if args.media_type in ['both', 'screenshots']:
-        tqdm.write('Downloading new screenshots...')
-        screens_page = 1
-        continuationToken = ''
+        tqdm.write('Scanning for new screenshots...')
+        cont_token = ''
         while True:
             # Call X API's screenshot endpoint.
-            screens_endpoint = "https://xapi.us/v2/" + xuid + "/screenshots"
-            if continuationToken != '':
-                screens_endpoint += "?continuationToken=" + continuationToken
-            output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
-                             screens_endpoint], capture_output=True).stdout
-            output = output.decode('utf-8').split('\r\n')
-            # Download/move all new screenshots from this page of results.
-            screens_data = json.loads(output[-1])
-            for screen in tqdm(screens_data, \
-                                desc='Page {}'.format(screens_page)):
-                if screen['screenshotId'] not in old_screen_ids:
-                    old_screen_ids.append(screen['screenshotId'])
-                    num_screens += 1
+            screens_endpoint = '/v2/' + xuid + '/screenshots'
+            if cont_token != '':
+                screens_endpoint += "?continuationToken=" + cont_token
+            screens, cont_token = make_xapi_call(xapi_key, screens_endpoint)
+            # Collect metadata for new screenshots on this page of results.
+            for screen in screens:
+                if screen['screenshotId'] not in history['screens']:
+                    history['screens'].append(screen['screenshotId'])
                     utc = datetime.strptime(screen['dateTaken'], \
                                             "%Y-%m-%d %H:%M:%S")
                     epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    fname = str(epoch) + ".png"
-                    sp.run(["wget", "-q", "-o", "/dev/null", "-O", fname, \
-                            screen['screenshotUris'][0]['uri']])
-                    shutil.move(fname, osp.join(args.local_dir, fname))
-            # Search for pagination in the header and stop if there is none.
-            continuationToken = ''
-            for line in output[0:-2]:
-                if 'continuationToken' in line:
-                    continuationToken = line.split()[-1]
-                    screens_page += 1
-                    break
-            if continuationToken == '':
+                    screen_info = {'time': str(epoch), \
+                                   'game': screen['titleName'], \
+                                   'uri': screen['screenshotUris'][0]['uri']}
+                    downloads['screens'].append(screen_info)
+            # Break out of the while loop if all pages have been scanned.
+            if cont_token == '':
                 break
 
-    # Download new game clips.
+    # Scan for new game clips.
     if args.media_type in ['both', 'gameclips']:
-        tqdm.write('Downloading new game clips...')
-        clips_page = 1
-        continuationToken = ''
+        tqdm.write('Scanning for new game clips...')
+        cont_token = ''
         while True:
             # Call X API's game clips endpoint.
-            clips_endpoint = "https://xapi.us/v2/" + xuid + "/game-clips"
-            if continuationToken != '':
-                clips_endpoint += "?continuationToken=" + continuationToken
-            output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
-                             clips_endpoint], capture_output=True).stdout
-            output = output.decode('utf-8').split('\r\n')
-            # Download/move all new game clips from this page of results.
-            clips_data = json.loads(output[-1])
-            for clip in tqdm(clips_data, desc='Page {}'.format(clips_page)):
-                if clip['gameClipId'] not in old_clip_ids:
-                    old_clip_ids.append(clip['gameClipId'])
-                    num_clips += 1
+            clips_endpoint = '/v2/' + xuid + '/game-clips'
+            if cont_token != '':
+                clips_endpoint += "?continuationToken=" + cont_token
+            clips, cont_token = make_xapi_call(xapi_key, clips_endpoint)
+            # Collect metadata for new game clips on this page of results.
+            for clip in clips:
+                if clip['gameClipId'] not in history['clips']:
+                    history['clips'].append(clip['gameClipId'])
                     utc = datetime.strptime(clip['dateRecorded'], \
                                             "%Y-%m-%d %H:%M:%S")
                     epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    fname = str(epoch) + ".mp4"
-                    sp.run(["wget", "-q", "-o", "/dev/null", "-O", fname, \
-                            clip['gameClipUris'][0]['uri']])
-                    shutil.move(fname, osp.join(args.local_dir, fname))
-            # Search for pagination in the header and stop if there is none.
-            continuationToken = ''
-            for line in output[0:-2]:
-                if 'continuationToken' in line:
-                    continuationToken = line.split()[-1]
-                    clips_page += 1
-                    break
-            if continuationToken == '':
+                    clip_info = {'time': str(epoch), \
+                                 'game': clip['titleName'], \
+                                 'uri': clip['gameClipUris'][0]['uri']}
+                    downloads['clips'].append(clip_info)
+            # Break out of the while loop if all pages have been scanned.
+            if cont_token == '':
                 break
+
+    # Download the new screenshots and game clips.
+    if len(downloads['screens']) > 0:
+        tqdm.write('Downloading new screenshots...')
+        for screen in tqdm(downloads['screens']):
+            path = osp.join(media_dir, screen['game'])
+            fname = screen['time'] + '.png'
+            download_uri(screen['uri'], path, fname)
+    if len(downloads['clips']) > 0:
+        tqdm.write('Downloading new game clips...')
+        for clip in tqdm(downloads['clips']):
+            path = osp.join(media_dir, clip['game'])
+            fname = clip['time'] + '.mp4'
+            download_uri(clip['uri'], path, fname)
 
     # Update the download history with IDs of all media downloaded.
     tqdm.write('Writing IDs of downloaded media to skip next time...')
-    download_history = {'note' : 'These IDs have been downloaded previously', \
-                        'screenshots' : old_screen_ids, \
-                        'gameclips' : old_clip_ids}
-    with open(download_history_fname, 'w') as f_out:
-        json.dump(download_history, f_out)
+    with open(history_fname, 'w') as f_out:
+        json.dump(history, f_out)
 
     # Conclude and quit.
-    if num_screens == 0 and num_clips == 0:
+    if len(downloads['screens']) == 0 and len(downloads['clips']) == 0:
         tqdm.write('No new screenshots or game clips to download')
     else:
         tqdm.write('Downloaded {} screenshots and {} game clips to {}'.format( \
-                   num_screens, num_clips, args.local_dir))
+                   len(downloads['screens']), len(downloads['clips']), \
+                   media_dir))
