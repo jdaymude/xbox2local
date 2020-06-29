@@ -46,7 +46,7 @@ def download_uri(uri, path, fname):
     Downloads the content at the specified URI to {path}/{fname}.
     """
     os.makedirs(path, exist_ok=True)
-    sp.run(["wget", "-q", "-o", "/dev/null", "-O", osp.join(path, fname), uri])
+    sp.run(['curl', '-s', '-o', osp.join(path, fname), uri])
 
 
 if __name__ == '__main__':
