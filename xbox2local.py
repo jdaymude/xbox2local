@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import os
 import os.path as osp
+from pathvalidate import sanitize_filepath, validate_filepath, ValidationError
 import subprocess as sp
 import sys
 from tqdm import tqdm
@@ -45,8 +46,9 @@ def download_uri(uri, path, fname):
     """
     Downloads the content at the specified URI to {path}/{fname}.
     """
+    path = sanitize_filepath(path, platform="auto")
     os.makedirs(path, exist_ok=True)
-    sp.run(["wget", "-q", "-o", "/dev/null", "-O", osp.join(path, fname), uri])
+    sp.run(['curl', '-s', '-o', osp.join(path, fname), uri])
 
 
 if __name__ == '__main__':
@@ -70,7 +72,12 @@ if __name__ == '__main__':
         config = json.load(f_in)
         xapi_key = config['xapi_key']
         xuid = str(make_xapi_call(xapi_key, '/v2/accountxuid')[0]['xuid'])
-        media_dir = config['media_dir']
+        try:
+            validate_filepath(config['media_dir'], platform="auto")
+            media_dir = config['media_dir']
+        except ValidationError as e:
+            tqdm.write("ERROR: media_dir path is invalid\n{}".format(e))
+            sys.exit()
 
     # Load download history.
     if osp.exists(history_fname):
