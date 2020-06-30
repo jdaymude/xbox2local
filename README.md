@@ -9,7 +9,7 @@ The goal of **xbox2local** is to make the process of saving your screenshots and
 
 ## Getting Started
 
-1. You'll need a Unix-based command line and any installation of [Python 3.x](https://www.python.org/downloads/). For users of other command lines, see Issue [#4](https://github.com/jdaymude/xbox2local/issues/4).
+1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.5 or newer. You will also need the [tqdm](https://github.com/tqdm/tqdm#installation) and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
 
 2. Have your Xbox Live (Microsoft) account email and password on hand. Both Free and Gold accounts are supported.
 
@@ -49,7 +49,7 @@ This file stores the ID of every screenshot and game clip that **xbox2local** ha
 If for whatever reason you want to start fresh and redownload all possible media, simply delete/move this file.
 
 
-## Troubleshooting and Gotchas
+## Troubleshooting
 
 **xbox2local** does its best to notify you if anything goes wrong when communicating with the X API or your Xbox Live account.
 Some common errors include:
@@ -77,6 +77,11 @@ In detail, **xbox2local** makes the following calls to X API each time it's run:
 
 Thus, if the total number of pages of results is greater than 60, this error will be raised and X API will stop serving results.
 See Issue [#3](https://github.com/jdaymude/xbox2local/issues/3) for further discussion.
+
+#### ERROR: media_dir path is invalid
+
+This means that the `media_dir` path you provided in `config.json` is not valid for your platform (Linux, Windows, or macOS). The error message from pathvalidate's [validate_filepath()](https://pathvalidate.readthedocs.io/en/latest/pages/examples/validate.html#validate-a-file-path) function that follows explains the error in more detail.
+Note: because sanitization rules differ slightly between platforms, running **xbox2local** with multiple command lines for the same media library may create different, similarly-named subfolders for the same game.
 
 #### No new screenshots or game clips to download
 
