@@ -98,8 +98,12 @@ if __name__ == '__main__':
             for screen in screens:
                 if screen['screenshotId'] not in history['screens']:
                     history['screens'].append(screen['screenshotId'])
-                    utc = datetime.strptime(screen['dateTaken'], \
-                                            "%Y-%m-%d %H:%M:%S")
+                    try:
+                        utc = datetime.strptime(screen['dateTaken'], \
+                                                "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        utc = datetime.strptime(screen['dateTaken'], \
+                                                "%Y-%m-%dT%H:%M:%S")
                     epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
                     screen_info = {'time': str(epoch), \
                                    'game': screen['titleName'], \
