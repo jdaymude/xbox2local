@@ -4,7 +4,6 @@ xbox2local: Downloads all Xbox screenshots and game captures from Xbox Live and
 """
 
 import argparse
-from datetime import datetime
 import json
 import os
 import os.path as osp
@@ -20,6 +19,10 @@ def make_xapi_call(xapi_key, endpoint):
     request is successful, its output is returned as a dict and any
     continuation token in its header is returned as a string. If unsuccessful,
     the error code and message are displayed and the script exits.
+    :param xapi_key: a string API key from https://xapi.us/profile
+    :param endpoint: a string API endpoint from https://xapi.us/documentation
+    :returns: a string HTTP reponse from the API call
+    :returns: a string continuation token (see XAPI documentation, "Pagination")
     """
     # Make the X API call.
     output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
@@ -45,6 +48,9 @@ def make_xapi_call(xapi_key, endpoint):
 def download_uri(uri, path, fname):
     """
     Downloads the content at the specified URI to {path}/{fname}.
+    :param uri: a string URI for the media to download
+    :param path: a string file path to download the media to
+    :param fname: a string file name for the downloaded media
     """
     path = sanitize_filepath(path, platform="auto")
     os.makedirs(path, exist_ok=True)
@@ -98,14 +104,7 @@ if __name__ == '__main__':
             for screen in screens:
                 if screen['screenshotId'] not in history['screens']:
                     history['screens'].append(screen['screenshotId'])
-                    try:
-                        utc = datetime.strptime(screen['dateTaken'], \
-                                                "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        utc = datetime.strptime(screen['dateTaken'], \
-                                                "%Y-%m-%dT%H:%M:%S")
-                    epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    screen_info = {'time': str(epoch), \
+                    screen_info = {'time': screen['dateTaken'], \
                                    'game': screen['titleName'], \
                                    'uri': screen['screenshotUris'][0]['uri']}
                     downloads['screens'].append(screen_info)
@@ -127,10 +126,7 @@ if __name__ == '__main__':
             for clip in clips:
                 if clip['gameClipId'] not in history['clips']:
                     history['clips'].append(clip['gameClipId'])
-                    utc = datetime.strptime(clip['dateRecorded'], \
-                                            "%Y-%m-%d %H:%M:%S")
-                    epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    clip_info = {'time': str(epoch), \
+                    clip_info = {'time': clip['dateRecorded'], \
                                  'game': clip['titleName'], \
                                  'uri': clip['gameClipUris'][0]['uri']}
                     downloads['clips'].append(clip_info)
