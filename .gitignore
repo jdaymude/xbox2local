@@ -1,6 +1,8 @@
 # xbox2local specific files
-history.json
-my_*
+users/*
+
+# Don't ignore .gitkeep files (useful for comitting directory structure).
+!*.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -20,6 +20,10 @@ def make_xapi_call(xapi_key, endpoint):
     request is successful, its output is returned as a dict and any
     continuation token in its header is returned as a string. If unsuccessful,
     the error code and message are displayed and the script exits.
+    :param xapi_key: a string API key from https://xapi.us/profile
+    :param endpoint: a string API endpoint from https://xapi.us/documentation
+    :returns: a string HTTP reponse from the API call
+    :returns: a string continuation token (see XAPI documentation, "Pagination")
     """
     # Make the X API call.
     output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
@@ -42,33 +46,45 @@ def make_xapi_call(xapi_key, endpoint):
         return http_output, cont_token
 
 
-def download_uri(uri, path, fname):
+def fmt_datetime(datestr):
+    """
+    Reformats a date/time string so that it avoids any special characters.
+    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS'
+                    or 'YYYY-mm-ddTHH:MM:SS' format
+    :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
+    """
+    for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S']:
+        try:
+            dt = datetime.strptime(datestr, fmt)
+            return dt.strftime('%Y-%m-%dT%H-%M-%S')
+        except ValueError:
+            pass
+    raise ValueError('No valid date format found')
+
+
+def download_uri(uri, fpath):
     """
     Downloads the content at the specified URI to {path}/{fname}.
+    :param uri: a string URI for the media to download
+    :param fpath: a string file path to download the media to
     """
-    path = sanitize_filepath(path, platform="auto")
-    os.makedirs(path, exist_ok=True)
-    sp.run(['curl', '-s', '-o', osp.join(path, fname), uri])
+    fpath = sanitize_filepath(fpath, platform="auto")
+    os.makedirs(osp.split(fpath)[0], exist_ok=True)
+    sp.run(['curl', '-s', '-o', fpath, uri])
 
 
 if __name__ == '__main__':
     # Parse command line arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='config.json', \
-                        help='JSON file with your X API key and media folder')
-    parser.add_argument('--media_type', default='both', \
+    parser.add_argument('-U', '--username', required=True, \
+                        help='The users/ subdirectory with your data')
+    parser.add_argument('-M', '--media_type', default='both', \
                         choices=['screenshots', 'gameclips', 'both'], \
                         help='download screenshots, game clips, or both')
     args = parser.parse_args()
 
-    # Other core variables.
-    history_fname = 'history.json'
-    history = {'note' : 'These IDs have been downloaded previously', \
-               'screens': [], 'clips': []}
-    downloads = {'screens': [], 'clips': []}
-
     # Load X API key, Xbox Profile User ID (xuid), and media directory.
-    with open(args.config) as f_in:
+    with open(osp.join('users', args.username, 'config.json')) as f_in:
         config = json.load(f_in)
         xapi_key = config['xapi_key']
         xuid = str(make_xapi_call(xapi_key, '/v2/accountxuid')[0]['xuid'])
@@ -80,11 +96,16 @@ if __name__ == '__main__':
             sys.exit()
 
     # Load download history.
+    history_fname = osp.join('users', args.username, 'history.json')
     if osp.exists(history_fname):
         with open(history_fname) as f_in:
             history = json.load(f_in)
+    else:
+        history = {'note' : 'These IDs have been downloaded previously', \
+                   'screens': [], 'clips': []}
 
     # Scan for new screenshots.
+    downloads = {'screens': [], 'clips': []}
     if args.media_type in ['both', 'screenshots']:
         tqdm.write('Scanning for new screenshots...')
         cont_token = ''
@@ -98,17 +119,10 @@ if __name__ == '__main__':
             for screen in screens:
                 if screen['screenshotId'] not in history['screens']:
                     history['screens'].append(screen['screenshotId'])
-                    try:
-                        utc = datetime.strptime(screen['dateTaken'], \
-                                                "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        utc = datetime.strptime(screen['dateTaken'], \
-                                                "%Y-%m-%dT%H:%M:%S")
-                    epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    screen_info = {'time': str(epoch), \
-                                   'game': screen['titleName'], \
-                                   'uri': screen['screenshotUris'][0]['uri']}
-                    downloads['screens'].append(screen_info)
+                    info = {'time': fmt_datetime(screen['dateTaken']), \
+                            'game': sanitize_filepath(screen['titleName']), \
+                            'uri': screen['screenshotUris'][0]['uri']}
+                    downloads['screens'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
@@ -127,13 +141,10 @@ if __name__ == '__main__':
             for clip in clips:
                 if clip['gameClipId'] not in history['clips']:
                     history['clips'].append(clip['gameClipId'])
-                    utc = datetime.strptime(clip['dateRecorded'], \
-                                            "%Y-%m-%d %H:%M:%S")
-                    epoch = int((utc - datetime(1970, 1, 1)).total_seconds())
-                    clip_info = {'time': str(epoch), \
-                                 'game': clip['titleName'], \
-                                 'uri': clip['gameClipUris'][0]['uri']}
-                    downloads['clips'].append(clip_info)
+                    info = {'time': fmt_datetime(clip['dateRecorded']), \
+                            'game': sanitize_filepath(clip['titleName']), \
+                            'uri': clip['gameClipUris'][0]['uri']}
+                    downloads['clips'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
@@ -142,15 +153,13 @@ if __name__ == '__main__':
     if len(downloads['screens']) > 0:
         tqdm.write('Downloading new screenshots...')
         for screen in tqdm(downloads['screens']):
-            path = osp.join(media_dir, screen['game'])
-            fname = screen['time'] + '.png'
-            download_uri(screen['uri'], path, fname)
+            fpath = osp.join(media_dir, screen['game'], screen['time'] + '.png')
+            download_uri(screen['uri'], fpath)
     if len(downloads['clips']) > 0:
         tqdm.write('Downloading new game clips...')
         for clip in tqdm(downloads['clips']):
-            path = osp.join(media_dir, clip['game'])
-            fname = clip['time'] + '.mp4'
-            download_uri(clip['uri'], path, fname)
+            fpath = osp.join(media_dir, clip['game'], clip['time'] + '.mp4')
+            download_uri(clip['uri'], fpath)
 
     # Update the download history with IDs of all media downloaded.
     tqdm.write('Writing IDs of downloaded media to skip next time...')
