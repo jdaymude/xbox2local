@@ -45,36 +45,29 @@ def make_xapi_call(xapi_key, endpoint):
         return http_output, cont_token
 
 
-def download_uri(uri, path, fname):
+def download_uri(uri, fpath):
     """
     Downloads the content at the specified URI to {path}/{fname}.
     :param uri: a string URI for the media to download
-    :param path: a string file path to download the media to
-    :param fname: a string file name for the downloaded media
+    :param fpath: a string file path to download the media to
     """
-    path = sanitize_filepath(path, platform="auto")
-    os.makedirs(path, exist_ok=True)
-    sp.run(['curl', '-s', '-o', osp.join(path, fname), uri])
+    fpath = sanitize_filepath(fpath, platform="auto")
+    os.makedirs(osp.split(fpath)[0], exist_ok=True)
+    sp.run(['curl', '-s', '-o', fpath, uri])
 
 
 if __name__ == '__main__':
     # Parse command line arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='config.json', \
-                        help='JSON file with your X API key and media folder')
-    parser.add_argument('--media_type', default='both', \
+    parser.add_argument('-U', '--username', required=True, \
+                        help='The users/ subdirectory with your data')
+    parser.add_argument('-M', '--media_type', default='both', \
                         choices=['screenshots', 'gameclips', 'both'], \
                         help='download screenshots, game clips, or both')
     args = parser.parse_args()
 
-    # Other core variables.
-    history_fname = 'history.json'
-    history = {'note' : 'These IDs have been downloaded previously', \
-               'screens': [], 'clips': []}
-    downloads = {'screens': [], 'clips': []}
-
     # Load X API key, Xbox Profile User ID (xuid), and media directory.
-    with open(args.config) as f_in:
+    with open(osp.join('users', args.username, 'config.json')) as f_in:
         config = json.load(f_in)
         xapi_key = config['xapi_key']
         xuid = str(make_xapi_call(xapi_key, '/v2/accountxuid')[0]['xuid'])
@@ -86,11 +79,16 @@ if __name__ == '__main__':
             sys.exit()
 
     # Load download history.
+    history_fname = osp.join('users', args.username, 'history.json')
     if osp.exists(history_fname):
         with open(history_fname) as f_in:
             history = json.load(f_in)
+    else:
+        history = {'note' : 'These IDs have been downloaded previously', \
+                   'screens': [], 'clips': []}
 
     # Scan for new screenshots.
+    downloads = {'screens': [], 'clips': []}
     if args.media_type in ['both', 'screenshots']:
         tqdm.write('Scanning for new screenshots...')
         cont_token = ''
@@ -138,15 +136,13 @@ if __name__ == '__main__':
     if len(downloads['screens']) > 0:
         tqdm.write('Downloading new screenshots...')
         for screen in tqdm(downloads['screens']):
-            path = osp.join(media_dir, screen['game'])
-            fname = screen['time'] + '.png'
-            download_uri(screen['uri'], path, fname)
+            fpath = osp.join(media_dir, screen['game'], screen['time'] + '.png')
+            download_uri(screen['uri'], fpath)
     if len(downloads['clips']) > 0:
         tqdm.write('Downloading new game clips...')
         for clip in tqdm(downloads['clips']):
-            path = osp.join(media_dir, clip['game'])
-            fname = clip['time'] + '.mp4'
-            download_uri(clip['uri'], path, fname)
+            fpath = osp.join(media_dir, clip['game'], clip['time'] + '.mp4')
+            download_uri(clip['uri'], fpath)
 
     # Update the download history with IDs of all media downloaded.
     tqdm.write('Writing IDs of downloaded media to skip next time...')

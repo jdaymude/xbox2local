@@ -20,31 +20,33 @@ The goal of **xbox2local** is to make the process of saving your screenshots and
 5. Clone this repository or download the latest [release](https://github.com/jdaymude/xbox2local/releases). Your directory structure will look like:
 ```
 xbox2local
-|---- config.json
-|---- xbox2local.py
-|---- ...
+|--- users
+|--- |--- .gitkeep
+|--- ...
+|--- xbox2local.py
 ```
 
-6. Open `config.json`. Copy your *API Key* from your X API [profile page](https://xapi.us/profile) into the `xapi_key` field and set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
+6. Create a `users/<your username>` directory and within it create a `config.json` file with the following contents:
 ```
 {
     "xapi_key": "your X API key from https://xapi.us/profile",
     "media_dir": "folder to put your media"
 }
 ```
+Copy your *API Key* from your X API [profile page](https://xapi.us/profile) into the `xapi_key` field and set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
 
-7. Run **xbox2local** with `python xbox2local.py`.
+7. Run **xbox2local** with `python xbox2local.py --username <your username>`.
 
 
 ## Usage
 
 **xbox2local** provides the following command line arguments:
 
-- `--config <CONFIG>` allows you to specify an alternative JSON file to read your X API key and media directory from, which is potentially useful if you have multiple accounts. The default is `config.json`.
+- `--username <USERNAME>` allows you to specify an alternative user to load your config file (containing your X API key and media directory), which is potentially useful if you have multiple accounts.
 
 - `--media_type {screenshots, gameclips, both}` allows you to specify whether to download only screenshots, only game clips, or both. The default is both.
 
-After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.json` file will be created.
+After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.json` file will be created in your `users/<your username>` directory.
 This file stores the ID of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
 If for whatever reason you want to start fresh and redownload all possible media, simply delete/move this file.
 
