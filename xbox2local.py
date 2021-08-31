@@ -4,6 +4,7 @@ xbox2local: Downloads all Xbox screenshots and game captures from Xbox Live and
 """
 
 import argparse
+from datetime import datetime
 import json
 import os
 import os.path as osp
@@ -43,6 +44,22 @@ def make_xapi_call(xapi_key, endpoint):
                 break
         # Return request output and the continuation token.
         return http_output, cont_token
+
+
+def fmt_datetime(datestr):
+    """
+    Reformats a date/time string so that it avoids any special characters.
+    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS'
+                    or 'YYYY-mm-ddTHH:MM:SS' format
+    :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
+    """
+    for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S']:
+        try:
+            dt = datetime.strptime(datestr, fmt)
+            return dt.strftime('%Y-%m-%dT%H-%M-%S')
+        except ValueError:
+            pass
+    raise ValueError('No valid date format found')
 
 
 def download_uri(uri, fpath):
@@ -102,10 +119,10 @@ if __name__ == '__main__':
             for screen in screens:
                 if screen['screenshotId'] not in history['screens']:
                     history['screens'].append(screen['screenshotId'])
-                    screen_info = {'time': screen['dateTaken'], \
-                                   'game': screen['titleName'], \
-                                   'uri': screen['screenshotUris'][0]['uri']}
-                    downloads['screens'].append(screen_info)
+                    info = {'time': fmt_datetime(screen['dateTaken']), \
+                            'game': sanitize_filepath(screen['titleName']), \
+                            'uri': screen['screenshotUris'][0]['uri']}
+                    downloads['screens'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
@@ -124,10 +141,10 @@ if __name__ == '__main__':
             for clip in clips:
                 if clip['gameClipId'] not in history['clips']:
                     history['clips'].append(clip['gameClipId'])
-                    clip_info = {'time': clip['dateRecorded'], \
-                                 'game': clip['titleName'], \
-                                 'uri': clip['gameClipUris'][0]['uri']}
-                    downloads['clips'].append(clip_info)
+                    info = {'time': fmt_datetime(clip['dateRecorded']), \
+                            'game': sanitize_filepath(clip['titleName']), \
+                            'uri': clip['gameClipUris'][0]['uri']}
+                    downloads['clips'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
