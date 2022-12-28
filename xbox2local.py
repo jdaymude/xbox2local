@@ -14,35 +14,34 @@ import sys
 from tqdm import tqdm
 
 
-def make_xapi_call(xapi_key, endpoint):
+def make_api_call(api_key, endpoint):
     """
-    Makes a call to X API using the specified X API key and endpoint. If the
+    Makes a call to OpenXBL API using the specified API key and endpoint. If the
     request is successful, its output is returned as a dict and any
     continuation token in its header is returned as a string. If unsuccessful,
     the error code and message are displayed and the script exits.
-    :param xapi_key: a string API key from https://xapi.us/profile
-    :param endpoint: a string API endpoint from https://xapi.us/documentation
+    :param api_key: a string API key from https://xbl.io/profile
+    :param endpoint: a string API endpoint from https://xbl.io/console
     :returns: a string HTTP reponse from the API call
     :returns: a string continuation token (see XAPI documentation, "Pagination")
     """
-    # Make the X API call.
-    output = sp.run(["curl", "-i", "-H", "X-AUTH: " + xapi_key, \
-                     "https://xapi.us" + endpoint], capture_output=True).stdout
+    # Make and parse the OpenXBL API call.
+    output = sp.run(["curl", "-i", "-H", "X-Authorization: " + api_key, \
+                     "https://xbl.io" + endpoint], capture_output=True).stdout
     output = output.decode('utf-8').split('\r\n')
     http_status = output[0].split()[1]
     http_output = json.loads(output[-1])
     if http_status != '200':
         # Report any errors and quit.
-        tqdm.write('ERROR ' + http_status + ': ' + http_output['error_message'])
+        error_msg = http_output['error'] if 'error' in http_output else '?'
+        tqdm.write('ERROR ' + http_status + ': ' + error_msg)
         sys.exit()
     else:
-        # Search for continuation token.
+        # Return request output and the continuation token if it exists.
         cont_token = ''
-        for line in output[0:-2]:
-            if 'continuationToken' in line:
-                cont_token = line.split()[-1]
-                break
-        # Return request output and the continuation token.
+        if 'continuationToken' in http_output:
+            cont_token = http_output['continuationToken']
+
         return http_output, cont_token
 
 
@@ -53,7 +52,7 @@ def fmt_datetime(datestr):
                     or 'YYYY-mm-ddTHH:MM:SS' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
     """
-    for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S']:
+    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ']:
         try:
             dt = datetime.strptime(datestr, fmt)
             return dt.strftime('%Y-%m-%dT%H-%M-%S')
@@ -83,11 +82,10 @@ if __name__ == '__main__':
                         help='download screenshots, game clips, or both')
     args = parser.parse_args()
 
-    # Load X API key, Xbox Profile User ID (xuid), and media directory.
+    # Load API key and media directory.
     with open(osp.join('users', args.username, 'config.json')) as f_in:
         config = json.load(f_in)
-        xapi_key = config['xapi_key']
-        xuid = str(make_xapi_call(xapi_key, '/v2/accountxuid')[0]['xuid'])
+        api_key = config['api_key']
         try:
             validate_filepath(config['media_dir'], platform="auto")
             media_dir = config['media_dir']
@@ -110,18 +108,18 @@ if __name__ == '__main__':
         tqdm.write('Scanning for new screenshots...')
         cont_token = ''
         while True:
-            # Call X API's screenshot endpoint.
-            screens_endpoint = '/v2/' + xuid + '/screenshots'
+            # Call OpenXBL API's screenshot endpoint.
+            screens_endpoint = '/api/v2/dvr/screenshots'
             if cont_token != '':
                 screens_endpoint += "?continuationToken=" + cont_token
-            screens, cont_token = make_xapi_call(xapi_key, screens_endpoint)
+            screens, cont_token = make_api_call(api_key, screens_endpoint)
             # Collect metadata for new screenshots on this page of results.
-            for screen in screens:
-                if screen['screenshotId'] not in history['screens']:
-                    history['screens'].append(screen['screenshotId'])
-                    info = {'time': fmt_datetime(screen['dateTaken']), \
+            for screen in screens['values']:
+                if screen['contentId'] not in history['screens']:
+                    history['screens'].append(screen['contentId'])
+                    info = {'time': fmt_datetime(screen['captureDate']), \
                             'game': sanitize_filepath(screen['titleName']), \
-                            'uri': screen['screenshotUris'][0]['uri']}
+                            'uri': screen['contentLocators'][0]['uri']}
                     downloads['screens'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
@@ -132,18 +130,18 @@ if __name__ == '__main__':
         tqdm.write('Scanning for new game clips...')
         cont_token = ''
         while True:
-            # Call X API's game clips endpoint.
-            clips_endpoint = '/v2/' + xuid + '/game-clips'
+            # Call OpenXBL API's game clips endpoint.
+            clips_endpoint = '/api/v2/dvr/gameclips'
             if cont_token != '':
                 clips_endpoint += "?continuationToken=" + cont_token
-            clips, cont_token = make_xapi_call(xapi_key, clips_endpoint)
+            clips, cont_token = make_api_call(api_key, clips_endpoint)
             # Collect metadata for new game clips on this page of results.
-            for clip in clips:
-                if clip['gameClipId'] not in history['clips']:
-                    history['clips'].append(clip['gameClipId'])
-                    info = {'time': fmt_datetime(clip['dateRecorded']), \
+            for clip in clips['values']:
+                if clip['contentId'] not in history['clips']:
+                    history['clips'].append(clip['contentId'])
+                    info = {'time': fmt_datetime(clip['contentSegments'][0]['recordDate']), \
                             'game': sanitize_filepath(clip['titleName']), \
-                            'uri': clip['gameClipUris'][0]['uri']}
+                            'uri': clip['contentLocators'][0]['uri']}
                     downloads['clips'].append(info)
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
