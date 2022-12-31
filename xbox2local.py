@@ -4,14 +4,23 @@ xbox2local: Downloads all Xbox screenshots and game captures from Xbox Live and
 """
 
 import argparse
+from collections import namedtuple
 from datetime import datetime
 import json
 import os
 import os.path as osp
+import pandas as pd
 from pathvalidate import sanitize_filepath, validate_filepath, ValidationError
 import subprocess as sp
 import sys
 from tqdm import tqdm
+from tqdm.contrib import tenumerate
+
+# Define formats and data types.
+DT_FMT = '%Y-%m-%dT%H-%M-%S'
+media_cols = ['id', 'game', 'type', 'capture_dt', 'download_dt', 'width', \
+              'height', 'sdr_filesize', 'hdr_filesize', 'sdr_uri', 'hdr_uri']
+Media = namedtuple('Media', media_cols)
 
 
 def make_api_call(api_key, endpoint):
@@ -54,8 +63,7 @@ def fmt_datetime(datestr):
     """
     for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ']:
         try:
-            dt = datetime.strptime(datestr, fmt)
-            return dt.strftime('%Y-%m-%dT%H-%M-%S')
+            return datetime.strptime(datestr, fmt).strftime(DT_FMT)
         except ValueError:
             pass
     raise ValueError('No valid date format found')
@@ -93,17 +101,15 @@ if __name__ == '__main__':
             tqdm.write("ERROR: media_dir path is invalid\n{}".format(e))
             sys.exit()
 
-    # Load download history.
-    history_fname = osp.join('users', args.username, 'history.json')
-    if osp.exists(history_fname):
-        with open(history_fname) as f_in:
-            history = json.load(f_in)
+    # Load history of previously downloaded screenshots and game clips.
+    history_fpath = osp.join('users', args.username, 'history.csv')
+    if osp.exists(history_fpath):
+        history = pd.read_csv(history_fpath, index_col='id')
     else:
-        history = {'note' : 'These IDs have been downloaded previously', \
-                   'screens': [], 'clips': []}
+        history = pd.DataFrame(columns=media_cols).set_index('id')
 
     # Scan for new screenshots.
-    downloads = {'screens': [], 'clips': []}
+    new_media = []
     if args.media_type in ['both', 'screenshots']:
         tqdm.write('Scanning for new screenshots...')
         cont_token = ''
@@ -115,12 +121,25 @@ if __name__ == '__main__':
             screens, cont_token = make_api_call(api_key, screens_endpoint)
             # Collect metadata for new screenshots on this page of results.
             for screen in screens['values']:
-                if screen['contentId'] not in history['screens']:
-                    history['screens'].append(screen['contentId'])
-                    info = {'time': fmt_datetime(screen['captureDate']), \
-                            'game': sanitize_filepath(screen['titleName']), \
-                            'uri': screen['contentLocators'][0]['uri']}
-                    downloads['screens'].append(info)
+                if screen['contentId'] not in history.index:
+                    # Detect SDR and HDR screenshots.
+                    sdr_uri, sdr_filesize, hdr_uri, hdr_filesize = '', 0, '', 0
+                    for cl in screen['contentLocators']:
+                        if cl['locatorType'] == 'Download':
+                            sdr_uri, sdr_filesize = cl['uri'], cl['fileSize']
+                        elif cl['locatorType'] == 'Download_HDR':
+                            hdr_uri, hdr_filesize = cl['uri'], cl['fileSize']
+                    # Add new screenshot to the list of downloads.
+                    new_media.append(Media(
+                        id=screen['contentId'], \
+                        game=sanitize_filepath(screen['titleName']), \
+                        type='screenshot',
+                        capture_dt=fmt_datetime(screen['captureDate']), \
+                        download_dt='', \
+                        width=screen.get('resolutionWidth'), \
+                        height=screen.get('resolutionHeight'), \
+                        sdr_filesize=sdr_filesize, hdr_filesize=hdr_filesize, \
+                        sdr_uri=sdr_uri, hdr_uri=hdr_uri))
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
@@ -137,37 +156,54 @@ if __name__ == '__main__':
             clips, cont_token = make_api_call(api_key, clips_endpoint)
             # Collect metadata for new game clips on this page of results.
             for clip in clips['values']:
-                if clip['contentId'] not in history['clips']:
-                    history['clips'].append(clip['contentId'])
-                    info = {'time': fmt_datetime(clip['contentSegments'][0]['recordDate']), \
-                            'game': sanitize_filepath(clip['titleName']), \
-                            'uri': clip['contentLocators'][0]['uri']}
-                    downloads['clips'].append(info)
+                if clip['contentId'] not in history.index:
+                    # Detect SDR game clip (there isn't an HDR version).
+                    sdr_uri, sdr_filesize = '', 0
+                    for cl in screen['contentLocators']:
+                        if cl['locatorType'] == 'Download':
+                            sdr_uri, sdr_filesize = cl['uri'], cl['fileSize']
+                            break
+                    # Add new game clip to the list of downloads.
+                    new_media.append(Media(
+                        id=clip['contentId'], \
+                        game=sanitize_filepath(clip['titleName']), \
+                        type='gameclip',
+                        capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),\
+                        download_dt='', \
+                        width=clip.get('resolutionWidth'), \
+                        height=clip.get('resolutionHeight'), \
+                        sdr_filesize=sdr_filesize, hdr_filesize=0, \
+                        sdr_uri=sdr_uri, hdr_uri=''))
             # Break out of the while loop if all pages have been scanned.
             if cont_token == '':
                 break
 
-    # Download the new screenshots and game clips.
-    if len(downloads['screens']) > 0:
-        tqdm.write('Downloading new screenshots...')
-        for screen in tqdm(downloads['screens']):
-            fpath = osp.join(media_dir, screen['game'], screen['time'] + '.png')
-            download_uri(screen['uri'], fpath)
-    if len(downloads['clips']) > 0:
-        tqdm.write('Downloading new game clips...')
-        for clip in tqdm(downloads['clips']):
-            fpath = osp.join(media_dir, clip['game'], clip['time'] + '.mp4')
-            download_uri(clip['uri'], fpath)
+    # Download and count the new screenshots and game clips.
+    screen_dls, hdr_screen_dls, clip_dls = 0, 0, 0
+    if len(new_media) > 0:
+        tqdm.write('Downloading new media...')
+        for i, media in tenumerate(new_media):
+            # Setup file path and download the SDR version.
+            if media.type == 'screenshot':
+                ext = '.png'
+                screen_dls += 1
+            else:  # media.type == 'gameclip'
+                ext = '.mp4'
+                clip_dls += 1
+            fpath = osp.join(media_dir, media.game, media.capture_dt)
+            download_uri(media.sdr_uri, fpath + ext)
+            # If there is an HDR version, download that too.
+            if media.hdr_uri != '':
+                download_uri(media.hdr_uri, fpath + '_hdr.jxr')
+                hdr_screen_dls += 1
+            new_media[i] = media._replace(download_dt=datetime.now().strftime(DT_FMT))
+        history = pd.concat([history, pd.DataFrame(new_media).set_index('id')])
 
-    # Update the download history with IDs of all media downloaded.
-    tqdm.write('Writing IDs of downloaded media to skip next time...')
-    with open(history_fname, 'w') as f_out:
-        json.dump(history, f_out)
-
-    # Conclude and quit.
-    if len(downloads['screens']) == 0 and len(downloads['clips']) == 0:
+    # Report final status and save download history if it was updated.
+    if screen_dls == 0 and clip_dls == 0:
         tqdm.write('No new screenshots or game clips to download')
     else:
-        tqdm.write('Downloaded {} screenshots and {} game clips to {}'.format( \
-                   len(downloads['screens']), len(downloads['clips']), \
-                   media_dir))
+        tqdm.write('Downloaded {} screenshots ({} HDR) and {} game clips to {}'\
+                   .format(screen_dls, hdr_screen_dls, clip_dls, media_dir))
+        tqdm.write('Writing metadata of downloaded media to skip next time...')
+        history.sort_values(by=['game', 'capture_dt']).to_csv(history_fpath)
