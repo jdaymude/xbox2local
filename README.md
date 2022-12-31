@@ -9,7 +9,7 @@ The goal of **xbox2local** is to make the process of saving your screenshots and
 
 ## Getting Started
 
-1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.5 or newer. You will also need the [tqdm](https://github.com/tqdm/tqdm#installation) and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
+1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.5 or newer. You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://github.com/tqdm/tqdm#installation), and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
 
 2. Have your Xbox Live (Microsoft) account email and password on hand. Both Free and Gold accounts are supported.
 
@@ -46,8 +46,8 @@ Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) 
 
 - `--media_type {screenshots, gameclips, both}` allows you to specify whether to download only screenshots, only game clips, or both. The default is both.
 
-After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.json` file will be created in your `users/<your username>` directory.
-This file stores the ID of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
+After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.csv` file will be created in your `users/<your username>` directory.
+This file stores the metadata of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
 If for whatever reason you want to start fresh and redownload all media stored by Xbox Live, simply delete/move this file.
 
 
