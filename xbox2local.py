@@ -1,6 +1,6 @@
 """
-xbox2local: Downloads all Xbox screenshots and game captures from Xbox Live and
-            stores copies in the specified local directory.
+xbox2local: Downloads all Xbox screenshots and game captures from the Xbox
+            network and stores copies in the specified local directory.
 """
 
 import argparse
@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 # Define formats and data types.
 DT_FMT = '%Y-%m-%dT%H-%M-%S'
-media_cols = ['id', 'game', 'type', 'capture_dt', 'download_dt', 'xboxlive', \
+media_cols = ['id', 'game', 'type', 'capture_dt', 'download_dt', 'xboxnetwork',\
               'width', 'height', 'sdr_filesize', 'hdr_filesize']
 Media = namedtuple('Media', media_cols + ['sdr_uri', 'hdr_uri'])
 
@@ -114,9 +114,9 @@ if __name__ == '__main__':
     else:
         history_df = pd.DataFrame(columns=media_cols).set_index('id')
 
-    # Scan Xbox Live for all screenshots.
-    xlive_media = []
-    tqdm.write('Scanning Xbox Live for screenshots...')
+    # Scan the Xbox network for all screenshots.
+    xnet_media = []
+    tqdm.write('Scanning the Xbox network for screenshots...')
     cont_token = ''
     while True:
         # Call OpenXBL API's screenshots endpoint.
@@ -134,13 +134,13 @@ if __name__ == '__main__':
                 elif cl['locatorType'] == 'Download_HDR':
                     hdr_uri, hdr_filesize = cl['uri'], cl['fileSize']
             # Add screenshot to the list of media.
-            xlive_media.append(Media(
+            xnet_media.append(Media(
                 id=screen['contentId'], \
                 game=sanitize_filepath(screen['titleName']), \
                 type='screenshot',
                 capture_dt=fmt_datetime(screen['captureDate']), \
                 download_dt='', \
-                xboxlive=True, \
+                xboxnetwork=True, \
                 width=screen.get('resolutionWidth'), \
                 height=screen.get('resolutionHeight'), \
                 sdr_filesize=sdr_filesize, hdr_filesize=hdr_filesize, \
@@ -149,8 +149,8 @@ if __name__ == '__main__':
         if cont_token == '':
             break
 
-    # Scan Xbox Live for all game clips.
-    tqdm.write('Scanning Xbox Live for game clips...')
+    # Scan the Xbox network for all game clips.
+    tqdm.write('Scanning the Xbox network for game clips...')
     cont_token = ''
     while True:
         # Call OpenXBL API's game clips endpoint.
@@ -167,13 +167,13 @@ if __name__ == '__main__':
                     sdr_uri, sdr_filesize = cl['uri'], cl['fileSize']
                     break
             # Add game clip to the list of media.
-            xlive_media.append(Media(
+            xnet_media.append(Media(
                 id=clip['contentId'], \
                 game=sanitize_filepath(clip['titleName']), \
                 type='gameclip',
                 capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),\
                 download_dt='', \
-                xboxlive=True, \
+                xboxnetwork=True, \
                 width=clip.get('resolutionWidth'), \
                 height=clip.get('resolutionHeight'), \
                 sdr_filesize=sdr_filesize, hdr_filesize=0, \
@@ -182,13 +182,14 @@ if __name__ == '__main__':
         if cont_token == '':
             break
 
-    # Collect scanned Xbox Live media, identify previously downloaded media that
-    # are no longer on Xbox Live, and identify new Xbox Live media to download.
-    xlive_df = pd.DataFrame(xlive_media).set_index('id')
-    history_df.loc[~history_df.index.isin(xlive_df.index), 'xboxlive'] = False
-    dl_df = xlive_df.loc[~xlive_df.index.isin(history_df.index)]
+    # Collect media scanned from the Xbox network, identify new media to
+    # download, and identify previously downloaded media that are no longer on
+    # the Xbox network.
+    xnet_df = pd.DataFrame(xnet_media).set_index('id')
+    dl_df = xnet_df.loc[~xnet_df.index.isin(history_df.index)]
+    history_df.loc[~history_df.index.isin(xnet_df.index), 'xboxnetwork'] = False
 
-    # Download new game media from Xbox Live.
+    # Download new game media from the Xbox network.
     if len(dl_df) > 0:
         tqdm.write('Downloading new media...')
         for media in tqdm(list(dl_df.itertuples())):
@@ -215,29 +216,29 @@ if __name__ == '__main__':
     else:
         tqdm.write('No new screenshots or game clips to download')
 
-    # Report current Xbox Live storage usage.
+    # Report current Xbox network storage usage.
     storage = {
-        'screen_sdr': xlive_df[xlive_df.type == 'screenshot']['sdr_filesize'].sum(),\
-        'screen_hdr': xlive_df[xlive_df.type == 'screenshot']['hdr_filesize'].sum(),\
-        'clip': xlive_df[xlive_df.type == 'gameclip']['sdr_filesize'].sum()}
+        'screen_sdr': xnet_df[xnet_df.type == 'screenshot']['sdr_filesize'].sum(),\
+        'screen_hdr': xnet_df[xnet_df.type == 'screenshot']['hdr_filesize'].sum(),\
+        'clip': xnet_df[xnet_df.type == 'gameclip']['sdr_filesize'].sum()}
     tqdm.write('You are using ' + fmt_sizeof(sum(storage.values())) + \
-               ' / 10GiB of your Xbox Live media storage:' + \
+               ' / 10GiB of your Xbox network media storage:' + \
                '\n\tScreenshots (SDR): ' + fmt_sizeof(storage['screen_sdr']) + \
                '\n\tScreenshots (HDR): ' + fmt_sizeof(storage['screen_hdr']) + \
                '\n\tGame Clips  (SDR): ' + fmt_sizeof(storage['clip']))
 
-    # Detect expired game clips stored on Xbox Live and optionally delete them.
-    expclips_df = xlive_df[(xlive_df.type == 'gameclip') & \
-        (xlive_df.capture_dt.apply(lambda x:
+    # Detect expired game clips on the Xbox network and optionally delete them.
+    expclips_df = xnet_df[(xnet_df.type == 'gameclip') & \
+        (xnet_df.capture_dt.apply(lambda x:
             (datetime.now() - datetime.strptime(x, DT_FMT)).days > exp_days))]
     if len(expclips_df) > 0:
-        tqdm.write(f"Xbox Live is storing {len(expclips_df)} game clips (" + \
-                   fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' + \
+        tqdm.write(f"The Xbox network is storing {len(expclips_df)} game clips"+\
+                   ' (' + fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' +\
                    f"that are more than {exp_days} days old.")
         delete_yn = ''
         while delete_yn not in ['Y', 'n']:
-            delete_yn = input('Delete expired game clips from Xbox Live? [Y/n]'\
-                              + '\n>>> ')
+            delete_yn = input('Delete expired game clips from the Xbox network?'\
+                              + ' [Y/n]\n>>> ')
         if delete_yn == 'Y':
             delete_yn = ''
             while delete_yn not in ['Y', 'n']:
@@ -248,7 +249,7 @@ if __name__ == '__main__':
                 for clipid in expclips_df.index:
                     delete_endpoint = '/api/v2/dvr/gameclips/delete/'
                     _, _ = make_api_call(api_key, delete_endpoint + clipid)
-                    history_df.loc[clipid, 'xboxlive'] = False
+                    history_df.loc[clipid, 'xboxnetwork'] = False
 
     # Save updated download history.
     tqdm.write('Writing metadata of downloaded media to skip next time...')

@@ -1,11 +1,27 @@
 # xbox2local
 
-Welcome to **xbox2local**, a command line utility written in Python for downloading all your Xbox Live [screenshots and game clips](https://support.xbox.com/help/friends-social-activity/share-socialize/capture-game-clips-and-screenshots) to your computer.
-As of this writing, Microsoft only allows automatic uploads of screenshots and game clips to the Xbox Live service, where [subtle rules](https://support.xbox.com/help/games-apps/my-games-apps/manage-clips-with-upload-studio) dictate how long your content sticks around.
-Game clips and screenshots can also be [shared](https://support.xbox.com/help/games-apps/my-games-apps/share-clips-xbox-one) to OneDrive for storage or Twitter for social sharing, but this must be done manually on a clip-by-clip basis.
+Welcome to **xbox2local**, a command line utility written in Python for downloading all your Xbox [screenshots and game clips](https://support.xbox.com/help/friends-social-activity/share-socialize/capture-game-clips-and-screenshots) to your computer.
+As of this writing, Microsoft only allows automatic uploads of screenshots and game clips to the Xbox network, where [subtle rules](https://support.xbox.com/help/games-apps/my-games-apps/manage-clips-with-upload-studio) dictate how long your content sticks around.
 
-The goal of **xbox2local** is to make the process of saving your screenshots and game clips much faster: each time you run it, it detects all your media on Xbox Live that it hasn't saved before and copies it to a local folder of your choosing.
-It also gives you the option of deleting old game clips off of Xbox Live after downloading them locally to free up storage.
+The goal of **xbox2local** is to make the process of saving your screenshots and game clips much faster.
+Each time you run it, it (1) detects all your media on the Xbox network that it hasn't saved before, (2) copies them to a local folder of your choosing, and (3) gives you the option of deleting them from the Xbox network to free up storage.
+
+
+## A Note on the Xbox November 2022 Update
+
+As of the [Xbox November 2022 Update](https://news.xbox.com/en-us/2022/11/16/xbox-november-2022-update-rolls-out-today/), Team Xbox has finally provided official support for bulk media backups to OneDrive or external storage in addition to the older clip-by-clip [sharing options](https://support.xbox.com/help/games-apps/my-games-apps/share-clips-xbox-one).
+On your Xbox, navigate to *Captures > Manage > Select all > Upload to OneDrive* or *Copy to external storage*.
+For many users, this functionality can (and should!) replace the functionality of the **xbox2local** script.
+For power users, **xbox2local** still offers the following benefits over the native Xbox functionality:
+
+- Game media can be downloaded to any local folder, independent of OneDrive storage limits and without manually transferring an external drive.
+- Downloaded media are automatically organized by game and capture date, whereas Xbox only differentiates screenshots (`OneDrive/Pictures/Xbox Screenshots`) and game clips (`OneDrive/Videos/Xbox Game DVR`).
+- Metadata for all downloaded game media are stored locally.
+
+However, using **xbox2local** has the following drawbacks:
+
+- Installation requires some technical knowledge (installing python, packages, etc.).
+- Dependence on the [OpenXBL](https://xbl.io/) API means that: (1) underlying changes to the API can break existing functionality, (2) adding new functionality depends on upstream API updates, and (3) request limits apply; see Issue [#3](https://github.com/jdaymude/xbox2local/issues/3).
 
 
 ## Getting Started
@@ -14,7 +30,7 @@ It also gives you the option of deleting old game clips off of Xbox Live after d
 
 2. Have your Xbox Live (Microsoft) account email and password on hand. Both Free and Gold accounts are supported.
 
-3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox Live service to download your media. Log in using your Xbox Live account.
+3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox network to download your media. Log in using your Microsoft account.
 
 4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button. Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page.
 
@@ -33,7 +49,7 @@ xbox2local
 7. Update the contents of your `config.json` file with the following contents:
     - Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) into the `api_key` field.
     - Set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
-    - Update the `gameclip_expiration_days` field if desired. This value controls the age of game clips that **xbox2local** will suggest deleting from Xbox Live to free up storage. By default, this is set to 365 days.
+    - Update the `gameclip_expiration_days` field if desired. This value controls the age of game clips that **xbox2local** will suggest deleting from the Xbox network to free up storage. By default, this is set to 365 days.
 
 8. Run **xbox2local** with `python xbox2local.py --username <your username>`.
 
@@ -46,12 +62,12 @@ xbox2local
 
 After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.csv` file will be created in your `users/<your username>` directory.
 This file stores the metadata of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
-If for whatever reason you want to start fresh and redownload all media stored by Xbox Live, simply delete/move this file.
+If for whatever reason you want to start fresh and redownload all media currently stored on the Xbox network, simply delete/move this file.
 
 
 ## Troubleshooting
 
-**xbox2local** does its best to notify you if anything goes wrong when communicating with the OpenXBL API or your Xbox Live account.
+**xbox2local** does its best to notify you if anything goes wrong when communicating with the OpenXBL API or your Xbox account.
 Some common errors include:
 
 #### ERROR 401: X-Authorization header misssing or Invalid API Key
@@ -81,8 +97,8 @@ Note: because sanitization rules differ slightly between platforms, running **xb
 #### No new screenshots or game clips to download
 
 This message is expected behavior when there really isn't anything new to download.
-However, if you receive this message unexpectedly, check your *Settings > Preferences > Capture & Share > Automatically upload* settings on your Xbox.
-This should be set to something other than *Don't upload*; otherwise, all screenshots and game clips you capture stay on your Xbox's local storage and are not uploaded to Xbox Live, so **xbox2local** cannot access them.
+However, if you receive this message unexpectedly, check your *Settings > Preferences > Capture & share > Automatically upload* settings on your Xbox.
+This should be set to something other than *Don't upload*; otherwise, all screenshots and game clips you capture stay on your Xbox's local storage and are not uploaded to the Xbox network, so **xbox2local** cannot access them.
 
 
 ## Upgrading from Prior Versions
