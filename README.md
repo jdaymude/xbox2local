@@ -5,37 +5,37 @@ As of this writing, Microsoft only allows automatic uploads of screenshots and g
 Game clips and screenshots can also be [shared](https://support.xbox.com/help/games-apps/my-games-apps/share-clips-xbox-one) to OneDrive for storage or Twitter for social sharing, but this must be done manually on a clip-by-clip basis.
 
 The goal of **xbox2local** is to make the process of saving your screenshots and game clips much faster: each time you run it, it detects all your media on Xbox Live that it hasn't saved before and copies it to a local folder of your choosing.
+It also gives you the option of deleting old game clips off of Xbox Live after downloading them locally to free up storage.
 
 
 ## Getting Started
 
-1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.5 or newer. You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://github.com/tqdm/tqdm#installation), and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
+1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.6 or newer. You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://github.com/tqdm/tqdm#installation), and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
 
 2. Have your Xbox Live (Microsoft) account email and password on hand. Both Free and Gold accounts are supported.
 
 3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox Live service to download your media. Log in using your Xbox Live account.
 
-4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button. Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page&mdash;we'll need it in a couple steps.
+4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button. Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page.
 
 5. Clone this repository or download the latest [release](https://github.com/jdaymude/xbox2local/releases). Your directory structure will look like:
 ```
 xbox2local
 |--- users
-|--- |--- .gitkeep
+|   |--- example_user
+|   |   |--- config.json
 |--- ...
 |--- xbox2local.py
 ```
 
-6. Create a `users/<your username>` directory and within it create a `config.json` file with the following contents:
-```
-{
-    "api_key": "your OpenXBL API key from https://xbl.io/profile",
-    "media_dir": "folder to put your media"
-}
-```
-Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) into the `api_key` field and set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
+6. Rename the `users/example_user` directory to `users/<your username>`. (If you need to download game media for multiple users, make multiple copies of this `users/example_user` directory.)
 
-7. Run **xbox2local** with `python xbox2local.py --username <your username>`.
+7. Update the contents of your `config.json` file with the following contents:
+    - Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) into the `api_key` field.
+    - Set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
+    - Update the `gameclip_expiration_days` field if desired. This value controls the age of game clips that **xbox2local** will suggest deleting from Xbox Live to free up storage. By default, this is set to 365 days.
+
+8. Run **xbox2local** with `python xbox2local.py --username <your username>`.
 
 
 ## Usage
@@ -43,8 +43,6 @@ Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) 
 **xbox2local** provides the following command line arguments:
 
 - `--username <USERNAME>` allows you to specify an alternative user to load your config file (containing your OpenXBL API key and media directory), which is potentially useful if you have multiple accounts.
-
-- `--media_type {screenshots, gameclips, both}` allows you to specify whether to download only screenshots, only game clips, or both. The default is both.
 
 After running **xbox2local** at least once in which it succeeds in downloading your media, a `history.csv` file will be created in your `users/<your username>` directory.
 This file stores the metadata of every screenshot and game clip that **xbox2local** has previously downloaded so that, on subsequent runs, it does not download duplicates.
@@ -65,18 +63,19 @@ This means that either you did not provide your OpenXBL API key in `config.json`
 This means that you have made more calls to OpenXBL API than your subscription plan allows.
 TL;DR: this limit can be violated if you have a huge number of screenshots and game clips.
 As of this writing, the free tier allows 150 requests per hour and there are larger quotas available via paid subscriptions.
-This error potentially be circumvented by using the `--media_type` option to only download screenshots, waiting for the limit to reset in the next hour, and then using it again to only download game clips.
 You can track your usage in real time on your OpenXBL [profile page](https://xbl.io/profile).
 
 In detail, **xbox2local** makes the following calls to OpenXBL API each time it's run:
-- One call to the `/api/v2/screenshots` endpoint per page of screenshot results (OpenXBL uses pagination to ensure that no single request is too big).
-- One call to the `/api/v2/gameclips` endpoint per page of game clip results.
+- One call to the `/api/v2/dvr/screenshots` endpoint per page of screenshot results (OpenXBL uses pagination to ensure that no single request is too big).
+- One call to the `/api/v2/dvr/gameclips` endpoint per page of game clip results.
+- One call to the `/api/v2/dvr/gameclips/delete` endpoint per deleted game clip.
 
 See Issue [#3](https://github.com/jdaymude/xbox2local/issues/3) for further discussion.
 
 #### ERROR: media_dir path is invalid
 
-This means that the `media_dir` path you provided in `config.json` is not valid for your platform (Linux, Windows, or macOS). The pathvalidate [validate_filepath()](https://pathvalidate.readthedocs.io/en/latest/pages/examples/validate.html#validate-a-file-path) function will print a more detailed error message.
+This means that the `media_dir` path you provided in `config.json` is not valid for your platform (Linux, Windows, or macOS).
+The pathvalidate [validate_filepath()](https://pathvalidate.readthedocs.io/en/latest/pages/examples/validate.html#validate-a-file-path) function will print a more detailed error message.
 Note: because sanitization rules differ slightly between platforms, running **xbox2local** with multiple command lines for the same media library may create different, similarly-named subfolders for the same game.
 
 #### No new screenshots or game clips to download

@@ -1,5 +1,6 @@
 # xbox2local specific files
 users/*
+!users/example_user
 
 # Don't ignore .gitkeep files (useful for comitting directory structure).
 !*.gitkeep
