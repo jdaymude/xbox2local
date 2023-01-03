@@ -40,10 +40,12 @@ def make_api_call(api_key, endpoint):
     http_status = output[0].split()[1]
     http_output = json.loads(output[-1])
     if http_status not in ['200', '202']:
-        # Report any errors and quit.
-        error_msg = http_output['error'] if 'error' in http_output else '?'
-        tqdm.write('ERROR ' + http_status + ': ' + error_msg)
-        sys.exit()
+        # Raise an error.
+        error_msg = ''
+        if 'error' in http_output:
+            error_msg = ': ' + http_output['error']
+        raise ValueError('ERROR: OpenXBL endpoint \'' + endpoint + '\' ' + \
+                         'returned ' + http_status + error_msg)
     else:
         # Return request output and the continuation token if it exists.
         cont_token = ''
@@ -65,7 +67,7 @@ def fmt_datetime(datestr):
             return datetime.strptime(datestr, fmt).strftime(DT_FMT)
         except ValueError:
             pass
-    raise ValueError('No valid date format found')
+    raise ValueError('ERROR: No valid date format for \'' + datestr + '\'')
 
 
 def fmt_sizeof(num, suffix="B"):
@@ -103,8 +105,8 @@ if __name__ == '__main__':
         try:
             validate_filepath(config['media_dir'], platform="auto")
             media_dir = config['media_dir']
-        except ValidationError as e:
-            tqdm.write("ERROR: media_dir path is invalid\n{}".format(e))
+        except ValidationError as err:
+            tqdm.write(f"ERROR: media_dir path is invalid\n{err}")
             sys.exit()
 
     # Load history of previously downloaded media.
@@ -162,7 +164,7 @@ if __name__ == '__main__':
         for clip in clips['values']:
             # Detect SDR game clip (Xbox doesn't record HDR game clips).
             sdr_uri, sdr_filesize = '', 0
-            for cl in screen['contentLocators']:
+            for cl in clip['contentLocators']:
                 if cl['locatorType'] == 'Download':
                     sdr_uri, sdr_filesize = cl['uri'], cl['fileSize']
                     break
@@ -201,7 +203,7 @@ if __name__ == '__main__':
             if media.hdr_uri != '':
                 download_uri(media.hdr_uri, fpath + '_hdr.jxr')
             # Timestamp the download.
-            dl_df.loc[media.id, 'download_dt'] = datetime.now().strftime(DT_FMT)
+            dl_df.loc[media.Index, 'download_dt'] = datetime.now().strftime(DT_FMT)
         # Update the download history with the new media metadata.
         history_df = pd.concat([history_df, \
                                 dl_df.drop(columns=['sdr_uri', 'hdr_uri'])])
@@ -223,9 +225,9 @@ if __name__ == '__main__':
         'clip': xnet_df[xnet_df.type == 'gameclip']['sdr_filesize'].sum()}
     tqdm.write('You are using ' + fmt_sizeof(sum(storage.values())) + \
                ' / 10GiB of your Xbox network media storage:' + \
-               '\n\tScreenshots (SDR): ' + fmt_sizeof(storage['screen_sdr']) + \
-               '\n\tScreenshots (HDR): ' + fmt_sizeof(storage['screen_hdr']) + \
-               '\n\tGame Clips  (SDR): ' + fmt_sizeof(storage['clip']))
+               '\n  Screenshots (SDR): ' + fmt_sizeof(storage['screen_sdr']) + \
+               '\n  Screenshots (HDR): ' + fmt_sizeof(storage['screen_hdr']) + \
+               '\n  Game Clips  (SDR): ' + fmt_sizeof(storage['clip']))
 
     # Detect expired game clips on the Xbox network and optionally delete them.
     expclips_df = xnet_df[(xnet_df.type == 'gameclip') & \
@@ -234,7 +236,7 @@ if __name__ == '__main__':
     if len(expclips_df) > 0:
         tqdm.write(f"The Xbox network is storing {len(expclips_df)} game clips"+\
                    ' (' + fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' +\
-                   f"that are more than {exp_days} days old.")
+                   f"that are >{exp_days} days old.")
         delete_yn = ''
         while delete_yn not in ['Y', 'n']:
             delete_yn = input('Delete expired game clips from the Xbox network?'\
@@ -246,10 +248,17 @@ if __name__ == '__main__':
                                   + '\n>>> ')
             if delete_yn == 'Y':
                 tqdm.write('Deleting expired game clips...')
-                for clipid in expclips_df.index:
+                for clipid in tqdm(expclips_df.index):
                     delete_endpoint = '/api/v2/dvr/gameclips/delete/'
-                    _, _ = make_api_call(api_key, delete_endpoint + clipid)
-                    history_df.loc[clipid, 'xboxnetwork'] = False
+                    try:
+                        _, _ = make_api_call(api_key, delete_endpoint + clipid)
+                        history_df.loc[clipid, 'xboxnetwork'] = False
+                    except ValueError as err:
+                        # This error likely means we hit the request limit and
+                        # should quit gracefully, recording any deletions we
+                        # succeeded in so far.
+                        tqdm.write(err)
+                        break
 
     # Save updated download history.
     tqdm.write('Writing metadata of downloaded media to skip next time...')

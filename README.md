@@ -11,12 +11,12 @@ Each time you run it, it (1) detects all your media on the Xbox network that it 
 
 As of the [Xbox November 2022 Update](https://news.xbox.com/en-us/2022/11/16/xbox-november-2022-update-rolls-out-today/), Team Xbox has finally provided official support for bulk media backups to OneDrive or external storage in addition to the older clip-by-clip [sharing options](https://support.xbox.com/help/games-apps/my-games-apps/share-clips-xbox-one).
 On your Xbox, navigate to *Captures > Manage > Select all > Upload to OneDrive* or *Copy to external storage*.
-For many users, this functionality can (and should!) replace the functionality of the **xbox2local** script.
+For many casual users, this functionality can (and should!) replace the functionality of the **xbox2local** script.
 For power users, **xbox2local** still offers the following benefits over the native Xbox functionality:
 
 - Game media can be downloaded to any local folder, independent of OneDrive storage limits and without manually transferring an external drive.
 - Downloaded media are automatically organized by game and capture date, whereas Xbox only differentiates screenshots (`OneDrive/Pictures/Xbox Screenshots`) and game clips (`OneDrive/Videos/Xbox Game DVR`).
-- Metadata for all downloaded game media are stored locally.
+- Metadata (ID, game, capture date, download date, Xbox network status, etc.) are stored locally for all downloaded game media.
 
 However, using **xbox2local** has the following drawbacks:
 
