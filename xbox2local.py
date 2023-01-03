@@ -222,15 +222,13 @@ if __name__ == '__main__':
         tqdm.write('No new screenshots or game clips to download')
 
     # Report current Xbox network storage usage.
-    storage = {
-        'screen_sdr': xnet_df[xnet_df.type == 'screenshot']['sdr_filesize'].sum(),\
-        'screen_hdr': xnet_df[xnet_df.type == 'screenshot']['hdr_filesize'].sum(),\
-        'clip': xnet_df[xnet_df.type == 'gameclip']['sdr_filesize'].sum()}
-    tqdm.write('You are using ' + fmt_sizeof(sum(storage.values())) + \
-               ' / 10GiB of your Xbox network media storage:' + \
-               '\n  Screenshots (SDR): ' + fmt_sizeof(storage['screen_sdr']) + \
-               '\n  Screenshots (HDR): ' + fmt_sizeof(storage['screen_hdr']) + \
-               '\n  Game Clips  (SDR): ' + fmt_sizeof(storage['clip']))
+    screen_storage = xnet_df[xnet_df.type == 'screenshot']['sdr_filesize'].sum()
+    clip_storage = xnet_df[xnet_df.type == 'gameclip']['sdr_filesize'].sum()
+    percent_usage = (screen_storage + clip_storage) / (10 * 1024**3) * 100
+    tqdm.write('You are using ' + fmt_sizeof(screen_storage + clip_storage) + \
+               f"/10GiB ({percent_usage:3.1f}%) of your Xbox network storage:"+\
+               '\n  Screenshots: ' + fmt_sizeof(screen_storage) + \
+               '\n  Game Clips:  ' + fmt_sizeof(clip_storage))
 
     # Detect expired game clips on the Xbox network and optionally delete them.
     expclips_df = xnet_df[(xnet_df.type == 'gameclip') & \
