@@ -1,0 +1,5 @@
+{
+  "api_key": "<your OpenXBL API key from https://xbl.io/profile>",
+  "media_dir": "<path to local folder for storing your game media>",
+  "gameclip_expiration_days": 365
+}
