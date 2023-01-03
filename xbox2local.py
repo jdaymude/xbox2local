@@ -38,21 +38,24 @@ def make_api_call(api_key, endpoint):
                      "https://xbl.io" + endpoint], capture_output=True).stdout
     output = output.decode('utf-8').split('\r\n')
     http_status = output[0].split()[1]
-    http_output = json.loads(output[-1])
-    if http_status not in ['200', '202']:
+    if http_status == '200':
+        # Return request output and the continuation token if it exists.
+        http_output = json.loads(output[-1])
+        cont_token = ''
+        if 'continuationToken' in http_output:
+            cont_token = http_output['continuationToken']
+    elif http_status == '202':
+        # Request will be fulfilled asynchronously, so there is no output.
+        http_output, cont_token = '', ''
+    else:
         # Raise an error.
-        error_msg = ''
+        http_output, error_msg = json.loads(output[-1]), ''
         if 'error' in http_output:
             error_msg = ': ' + http_output['error']
         raise ValueError('ERROR: OpenXBL endpoint \'' + endpoint + '\' ' + \
                          'returned ' + http_status + error_msg)
-    else:
-        # Return request output and the continuation token if it exists.
-        cont_token = ''
-        if 'continuationToken' in http_output:
-            cont_token = http_output['continuationToken']
 
-        return http_output, cont_token
+    return http_output, cont_token
 
 
 def fmt_datetime(datestr):

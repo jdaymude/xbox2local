@@ -21,20 +21,25 @@ For power users, **xbox2local** still offers the following benefits over the nat
 However, using **xbox2local** has the following drawbacks:
 
 - Installation requires some technical knowledge (installing python, packages, etc.).
-- Dependence on the [OpenXBL](https://xbl.io/) API means that: (1) underlying changes to the API can break existing functionality, (2) adding new functionality depends on upstream API updates, and (3) request limits apply; see Issue [#3](https://github.com/jdaymude/xbox2local/issues/3).
+- Dependence on the [OpenXBL](https://xbl.io/) API means that: (1) underlying changes to the API can break existing functionality, (2) adding new functionality depends on upstream API updates, and (3) API request limits apply.
 
 
 ## Getting Started
 
-1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.6 or newer. You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://github.com/tqdm/tqdm#installation), and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
+1. You'll need a command line (Unix-based, Windows Command Prompt, or macOS Terminal) and any [Python](https://www.python.org/downloads/) installation version 3.6 or newer.
+You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://github.com/tqdm/tqdm#installation), and [pathvalidate](https://github.com/thombashi/pathvalidate#installation) packages.
 
-2. Have your Xbox Live (Microsoft) account email and password on hand. Both Free and Gold accounts are supported.
+2. Have your Xbox Live (Microsoft) account email and password on hand.
+Both Free and Gold accounts are supported.
 
-3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox network to download your media. Log in using your Microsoft account.
+3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox network to download your media.
+Log in using your Microsoft account.
 
-4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button. Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page.
+4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button.
+Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page.
 
-5. Clone this repository or download the latest [release](https://github.com/jdaymude/xbox2local/releases). Your directory structure will look like:
+5. Clone this repository or download the latest [release](https://github.com/jdaymude/xbox2local/releases).
+Your directory structure will look like:
 ```
 xbox2local
 |--- users
@@ -44,12 +49,15 @@ xbox2local
 |--- xbox2local.py
 ```
 
-6. Rename the `users/example_user` directory to `users/<your username>`. (If you need to download game media for multiple users, make multiple copies of this `users/example_user` directory.)
+6. Rename the `users/example_user` directory to `users/<your username>`.
+(If you need to download game media for multiple users, make multiple copies of this `users/example_user` directory.)
 
 7. Update the contents of your `config.json` file with the following contents:
     - Copy the *API Key* from your OpenXBL API [profile page](https://xbl.io/profile) into the `api_key` field.
-    - Set the `media_dir` field to the local directory to download screenshots and game clips to (e.g., your OneDrive folder).
-    - Update the `gameclip_expiration_days` field if desired. This value controls the age of game clips that **xbox2local** will suggest deleting from the Xbox network to free up storage. By default, this is set to 365 days.
+    - Set the `media_dir` field to the local directory to download screenshots and game clips to.
+    - Update the `gameclip_expiration_days` field if desired.
+    This value controls the age of game clips that **xbox2local** will suggest deleting from the Xbox network to free up storage.
+    By default, this is set to 365 days.
 
 8. Run **xbox2local** with `python xbox2local.py --username <your username>`.
 
@@ -72,25 +80,20 @@ Some common errors include:
 
 #### ERROR 401: X-Authorization header misssing or Invalid API Key
 
-This means that either you did not provide your OpenXBL API key in `config.json` or the API key you provided is invalid.
+This means that either you did not provide your OpenXBL API key in `users/<your username>/config.json` or the API key you provided is invalid.
 
 #### ERROR 403: API Rate Limit Exceeded
 
 This means that you have made more calls to OpenXBL API than your subscription plan allows.
-TL;DR: this limit can be violated if you have a huge number of screenshots and game clips.
 As of this writing, the free tier allows 150 requests per hour and there are larger quotas available via paid subscriptions.
 You can track your usage in real time on your OpenXBL [profile page](https://xbl.io/profile).
 
-In detail, **xbox2local** makes the following calls to OpenXBL API each time it's run:
-- One call to the `/api/v2/dvr/screenshots` endpoint per page of screenshot results (OpenXBL uses pagination to ensure that no single request is too big).
-- One call to the `/api/v2/dvr/gameclips` endpoint per page of game clip results.
-- One call to the `/api/v2/dvr/gameclips/delete` endpoint per deleted game clip.
-
+This should only occur if you're trying to delete a large number of game clips, and the error will naturally resolve by re-running the script after the per-hour request quota reset.
 See Issue [#3](https://github.com/jdaymude/xbox2local/issues/3) for further discussion.
 
 #### ERROR: media_dir path is invalid
 
-This means that the `media_dir` path you provided in `config.json` is not valid for your platform (Linux, Windows, or macOS).
+This means that the `media_dir` path you provided in `users/<your username>/config.json` is not valid for your platform (Linux, Windows, or macOS).
 The pathvalidate [validate_filepath()](https://pathvalidate.readthedocs.io/en/latest/pages/examples/validate.html#validate-a-file-path) function will print a more detailed error message.
 Note: because sanitization rules differ slightly between platforms, running **xbox2local** with multiple command lines for the same media library may create different, similarly-named subfolders for the same game.
 
