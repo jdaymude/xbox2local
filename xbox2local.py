@@ -65,7 +65,7 @@ def fmt_datetime(datestr):
                     or 'YYYY-mm-ddTHH:MM:SS' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
     """
-    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ']:
+    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%fZ']:
         try:
             return datetime.strptime(datestr, fmt).strftime(DT_FMT)
         except ValueError:
