@@ -3,6 +3,7 @@ xbox2local: Downloads all Xbox screenshots and game captures from the Xbox
             network and stores copies in the specified local directory.
 """
 
+import filedate
 import argparse
 from collections import namedtuple
 from datetime import datetime
@@ -17,7 +18,7 @@ from tqdm import tqdm
 
 # Define formats and data types.
 DT_FMT = '%Y-%m-%dT%H-%M-%S'
-media_cols = ['id', 'game', 'type', 'capture_dt', 'download_dt', 'xboxnetwork',\
+media_cols = ['id', 'game', 'type', 'capture_dt_raw', 'capture_dt', 'download_dt', 'xboxnetwork',\
               'width', 'height', 'sdr_filesize', 'hdr_filesize']
 Media = namedtuple('Media', media_cols + ['sdr_uri', 'hdr_uri'])
 
@@ -58,6 +59,21 @@ def make_api_call(api_key, endpoint):
     return http_output, cont_token
 
 
+def str_to_datetime(datestr):
+    """
+    Reformats a date/time string so that it avoids any special characters.
+    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS'
+                    or 'YYYY-mm-ddTHH:MM:SS' format
+    :returns: a datetime value of the datestr if possible
+    """
+    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%fZ']:
+        try:
+            return datetime.strptime(datestr, fmt)
+        except ValueError:
+            pass
+    raise ValueError('ERROR: No valid date format for \'' + datestr + '\'')
+
+
 def fmt_datetime(datestr):
     """
     Reformats a date/time string so that it avoids any special characters.
@@ -65,12 +81,7 @@ def fmt_datetime(datestr):
                     or 'YYYY-mm-ddTHH:MM:SS' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
     """
-    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%fZ']:
-        try:
-            return datetime.strptime(datestr, fmt).strftime(DT_FMT)
-        except ValueError:
-            pass
-    raise ValueError('ERROR: No valid date format for \'' + datestr + '\'')
+    return str_to_datetime(datestr).strftime(DT_FMT)
 
 
 def fmt_sizeof(num, suffix="B"):
@@ -82,7 +93,10 @@ def fmt_sizeof(num, suffix="B"):
     return f"{num:.1f}Yi{suffix}"
 
 
-def download_uri(uri, fpath):
+import os.path
+import time
+
+def download_uri(uri, fpath, media):
     """
     Downloads the content at the specified URI to {path}/{fname}.
     :param uri: a string URI for the media to download
@@ -91,6 +105,22 @@ def download_uri(uri, fpath):
     fpath = sanitize_filepath(fpath, platform="auto")
     os.makedirs(osp.split(fpath)[0], exist_ok=True)
     sp.run(['curl', '-s', '-o', fpath, uri])
+
+    while not os.path.exists(fpath):
+        time.sleep(1)
+
+    if os.path.isfile(fpath):
+        # read file
+        datetime_obj = str_to_datetime(media.capture_dt_raw)
+        a_file = filedate.File(fpath)
+
+        a_file.set(
+            created = datetime_obj,
+            modified = datetime_obj,
+            accessed = datetime_obj
+        )
+    else:
+        raise ValueError("%s isn't a file!" % fpath)
 
 
 if __name__ == '__main__':
@@ -143,6 +173,7 @@ if __name__ == '__main__':
                 id=screen['contentId'], \
                 game=sanitize_filepath(screen['titleName']), \
                 type='screenshot',
+                capture_dt_raw=screen['captureDate'], \
                 capture_dt=fmt_datetime(screen['captureDate']), \
                 download_dt='', \
                 xboxnetwork=True, \
@@ -176,6 +207,7 @@ if __name__ == '__main__':
                 id=clip['contentId'], \
                 game=sanitize_filepath(clip['titleName']), \
                 type='gameclip',
+                capture_dt_raw=clip['contentSegments'][0]['recordDate'], \
                 capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),\
                 download_dt='', \
                 xboxnetwork=True, \
@@ -201,10 +233,10 @@ if __name__ == '__main__':
             # Setup file path and download the SDR version.
             fpath = osp.join(media_dir, media.game, media.capture_dt)
             ext = '.png' if media.type == 'screenshot' else '.mp4'
-            download_uri(media.sdr_uri, fpath + ext)
+            download_uri(media.sdr_uri, fpath + ext, media)
             # If there is an HDR version, download that too.
             if media.hdr_uri != '':
-                download_uri(media.hdr_uri, fpath + '_hdr.jxr')
+                download_uri(media.hdr_uri, fpath + '_hdr.jxr', media)
             # Timestamp the download.
             dl_df.loc[media.Index, 'download_dt'] = datetime.now().strftime(DT_FMT)
         # Update the download history with the new media metadata.
