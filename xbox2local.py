@@ -61,11 +61,12 @@ def make_api_call(api_key, endpoint):
 def fmt_datetime(datestr):
     """
     Reformats a date/time string so that it avoids any special characters.
-    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS'
-                    or 'YYYY-mm-ddTHH:MM:SS' format
+    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS',
+                    'YYYY-mm-ddTHH:MM:SS', or 'YYYY-mm-ddTHH:MM:SS.fff' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
     """
-    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%fZ']:
+    for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ',
+                '%Y-%m-%dT%H:%M:%S.%fZ']:
         try:
             return datetime.strptime(datestr, fmt).strftime(DT_FMT)
         except ValueError:
