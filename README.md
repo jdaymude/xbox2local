@@ -108,6 +108,7 @@ This should be set to something other than *Don't upload*; otherwise, all screen
 
 Updating an older version of **xbox2local** to a [new release](https://github.com/jdaymude/xbox2local/releases) requires a basic understanding of [semantic versioning](https://semver.org/), where version numbers are written as `MAJOR.MINOR.PATCH`.
 If your older version and the updated version have the same `MAJOR` number, you can replace your `xbox2local.py` file with the [newest version](https://github.com/jdaymude/xbox2local/blob/master/xbox2local.py) and things should just work.
+Any backwards compatibility issues can be addressed by running the corresponding functions in [`update.py`](https://github.com/jdaymude/xbox2local/blob/master/update.py).
 If you are updating to a new `MAJOR` version (e.g., from `v1.#.#` to `v2.#.#`), there may be additional changes you need to make manually.
 The release notes for the corresponding major update (e.g., `v2.0.0`) will have instructions for those changes, if applicable.
 
