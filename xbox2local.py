@@ -28,6 +28,7 @@ def make_api_call(api_key, endpoint):
     request is successful, its output is returned as a dict and any
     continuation token in its header is returned as a string. If unsuccessful,
     the error code and message are displayed and the script exits.
+
     :param api_key: a string API key from https://xbl.io/profile
     :param endpoint: a string API endpoint from https://xbl.io/console
     :returns: a string HTTP reponse from the API call
@@ -61,6 +62,7 @@ def make_api_call(api_key, endpoint):
 def fmt_datetime(datestr):
     """
     Reformats a date/time string so that it avoids any special characters.
+
     :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SSZ',
                     'YYYY-mm-ddTHH:MM:SSZ', or 'YYYY-mm-ddTHH:MM:SS.fffZ' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
@@ -75,6 +77,13 @@ def fmt_datetime(datestr):
 
 
 def fmt_sizeof(num, suffix="B"):
+    """
+    Formats a number in a human-readable order of magnitude using base-1024.
+
+    :param num: an int or float number
+    :param suffix: an optional string suffix; by default "B" for bytes
+    :returns: a formatted string representation of the input number
+    """
     for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"
@@ -87,6 +96,7 @@ def download_uri(uri, fpath, accmod_dt):
     """
     Downloads the content at the specified URI to {path}/{fname} and then set
     the last accessed and modified times to the specified datetime.
+
     :param uri: a string URI for the media to download
     :param fpath: a string file path to download the media to
     :param accmod_dt: a datetime object for the file's last access/modify time
