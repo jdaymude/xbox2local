@@ -34,7 +34,7 @@ def make_api_call(api_key, endpoint):
     :returns: a string continuation token (see XAPI documentation, "Pagination")
     """
     # Make and parse the OpenXBL API call.
-    output = sp.run(["curl", "-i", "-H", "X-Authorization: " + api_key, \
+    output = sp.run(["curl", "-i", "-H", "X-Authorization: " + api_key,
                      "https://xbl.io" + endpoint], capture_output=True).stdout
     output = output.decode('utf-8').split('\r\n')
     http_status = output[0].split()[1]
@@ -52,7 +52,7 @@ def make_api_call(api_key, endpoint):
         http_output, error_msg = json.loads(output[-1]), ''
         if 'error' in http_output:
             error_msg = ': ' + http_output['error']
-        raise ValueError('ERROR: OpenXBL endpoint \'' + endpoint + '\' ' + \
+        raise ValueError('ERROR: OpenXBL endpoint \'' + endpoint + '\' ' +
                          'returned ' + http_status + error_msg)
 
     return http_output, cont_token
@@ -100,7 +100,7 @@ def download_uri(uri, fpath, accmod_dt):
 if __name__ == '__main__':
     # Parse command line arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-U', '--username', required=True, \
+    parser.add_argument('-U', '--username', required=True,
                         help='The users/ subdirectory with your data')
     args = parser.parse_args()
 
@@ -144,15 +144,15 @@ if __name__ == '__main__':
                     hdr_uri, hdr_filesize = cl['uri'], cl['fileSize']
             # Add screenshot to the list of media.
             xnet_media.append(Media(
-                id=screen['contentId'], \
-                game=sanitize_filepath(screen['titleName']), \
+                id=screen['contentId'],
+                game=sanitize_filepath(screen['titleName']),
                 type='screenshot',
-                capture_dt=fmt_datetime(screen['captureDate']), \
-                download_dt='', \
-                xboxnetwork=True, \
-                width=screen.get('resolutionWidth'), \
-                height=screen.get('resolutionHeight'), \
-                sdr_filesize=sdr_filesize, hdr_filesize=hdr_filesize, \
+                capture_dt=fmt_datetime(screen['captureDate']),
+                download_dt='',
+                xboxnetwork=True,
+                width=screen.get('resolutionWidth'),
+                height=screen.get('resolutionHeight'),
+                sdr_filesize=sdr_filesize, hdr_filesize=hdr_filesize,
                 sdr_uri=sdr_uri, hdr_uri=hdr_uri))
         # Break out of the while loop if all pages have been scanned.
         if cont_token == '':
@@ -177,15 +177,15 @@ if __name__ == '__main__':
                     break
             # Add game clip to the list of media.
             xnet_media.append(Media(
-                id=clip['contentId'], \
-                game=sanitize_filepath(clip['titleName']), \
+                id=clip['contentId'],
+                game=sanitize_filepath(clip['titleName']),
                 type='gameclip',
-                capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),\
-                download_dt='', \
-                xboxnetwork=True, \
-                width=clip.get('resolutionWidth'), \
-                height=clip.get('resolutionHeight'), \
-                sdr_filesize=sdr_filesize, hdr_filesize=0, \
+                capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),
+                download_dt='',
+                xboxnetwork=True,
+                width=clip.get('resolutionWidth'),
+                height=clip.get('resolutionHeight'),
+                sdr_filesize=sdr_filesize, hdr_filesize=0,
                 sdr_uri=sdr_uri, hdr_uri=''))
         # Break out of the while loop if all pages have been scanned.
         if cont_token == '':
@@ -213,15 +213,15 @@ if __name__ == '__main__':
             # Timestamp the download.
             dl_df.loc[media.Index, 'download_dt'] = datetime.now().strftime(DT_FMT)
         # Update the download history with the new media metadata.
-        history_df = pd.concat([history_df, \
+        history_df = pd.concat([history_df,
                                 dl_df.drop(columns=['sdr_uri', 'hdr_uri'])])
         # Report final download status.
         screen_sdr_dls = len(dl_df[dl_df.type == 'screenshot'])
-        screen_hdr_dls = len(dl_df[(dl_df.type == 'screenshot') & \
+        screen_hdr_dls = len(dl_df[(dl_df.type == 'screenshot') &
                                    (dl_df.hdr_uri != '')])
         clip_dls = len(dl_df[dl_df.type == 'gameclip'])
-        tqdm.write(f"Downloaded {screen_sdr_dls} screenshots " + \
-                   f"({screen_hdr_dls} HDR) and {clip_dls} game clips to " + \
+        tqdm.write(f"Downloaded {screen_sdr_dls} screenshots " +
+                   f"({screen_hdr_dls} HDR) and {clip_dls} game clips to " +
                    media_dir)
     else:
         tqdm.write('No new screenshots or game clips to download')
@@ -230,28 +230,28 @@ if __name__ == '__main__':
     screen_storage = xnet_df[xnet_df.type == 'screenshot']['sdr_filesize'].sum()
     clip_storage = xnet_df[xnet_df.type == 'gameclip']['sdr_filesize'].sum()
     percent_usage = (screen_storage + clip_storage) / (10 * 1024**3) * 100
-    tqdm.write('You are using ' + fmt_sizeof(screen_storage + clip_storage) + \
-               f"/10GiB ({percent_usage:3.1f}%) of your Xbox network storage:"+\
-               '\n  Screenshots: ' + fmt_sizeof(screen_storage) + \
+    tqdm.write('You are using ' + fmt_sizeof(screen_storage + clip_storage) +
+               f"/10GiB ({percent_usage:3.1f}%) of your Xbox network storage:" +
+               '\n  Screenshots: ' + fmt_sizeof(screen_storage) +
                '\n  Game Clips:  ' + fmt_sizeof(clip_storage))
 
     # Detect expired game clips on the Xbox network and optionally delete them.
-    expclips_df = xnet_df[(xnet_df.type == 'gameclip') & \
+    expclips_df = xnet_df[(xnet_df.type == 'gameclip') &
         (xnet_df.capture_dt.apply(lambda x:
             (datetime.now() - datetime.strptime(x, DT_FMT)).days > exp_days))]
     if len(expclips_df) > 0:
-        tqdm.write(f"The Xbox network is storing {len(expclips_df)} game clips"+\
-                   ' (' + fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' +\
+        tqdm.write(f"The Xbox network is storing {len(expclips_df)} game clips"+
+                   ' (' + fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' +
                    f"that are >{exp_days} days old.")
         delete_yn = ''
         while delete_yn not in ['Y', 'n']:
-            delete_yn = input('Delete expired game clips from the Xbox network?'\
+            delete_yn = input('Delete expired game clips from the Xbox network?'
                               + ' [Y/n]\n>>> ')
         if delete_yn == 'Y':
             delete_yn = ''
             while delete_yn not in ['Y', 'n']:
-                delete_yn = input('Are you sure? This can\'t be undone. [Y/n]' \
-                                  + '\n>>> ')
+                delete_yn = input('Are you sure? This can\'t be undone. [Y/n]' +
+                                  '\n>>> ')
             if delete_yn == 'Y':
                 tqdm.write('Deleting expired game clips...')
                 for clipid in tqdm(expclips_df.index):
@@ -268,4 +268,4 @@ if __name__ == '__main__':
 
     # Save updated download history.
     tqdm.write('Writing metadata of downloaded media to skip next time...')
-    history_df.sort_values(by=['game', 'capture_dt']).to_csv(history_fpath)
+    history_df.sort_values(by='capture_dt', ascending=False).to_csv(history_fpath)
