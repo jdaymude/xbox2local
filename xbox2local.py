@@ -61,8 +61,8 @@ def make_api_call(api_key, endpoint):
 def fmt_datetime(datestr):
     """
     Reformats a date/time string so that it avoids any special characters.
-    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SS',
-                    'YYYY-mm-ddTHH:MM:SS', or 'YYYY-mm-ddTHH:MM:SS.fff' format
+    :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SSZ',
+                    'YYYY-mm-ddTHH:MM:SSZ', or 'YYYY-mm-ddTHH:MM:SS.fffZ' format
     :returns: a string representing a date/time in 'YYYY-mm-ddTHH-MM-SS' format
     """
     for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ',
@@ -83,15 +83,18 @@ def fmt_sizeof(num, suffix="B"):
     return f"{num:.1f}Yi{suffix}"
 
 
-def download_uri(uri, fpath):
+def download_uri(uri, fpath, accmod_dt):
     """
-    Downloads the content at the specified URI to {path}/{fname}.
+    Downloads the content at the specified URI to {path}/{fname} and then set
+    the last accessed and modified times to the specified datetime.
     :param uri: a string URI for the media to download
     :param fpath: a string file path to download the media to
+    :param accmod_dt: a datetime object for the file's last access/modify time
     """
     fpath = sanitize_filepath(fpath, platform="auto")
     os.makedirs(osp.split(fpath)[0], exist_ok=True)
     sp.run(['curl', '-s', '-o', fpath, uri])
+    os.utime(fpath, (accmod_dt.timestamp(), accmod_dt.timestamp()))
 
 
 if __name__ == '__main__':
@@ -202,10 +205,11 @@ if __name__ == '__main__':
             # Setup file path and download the SDR version.
             fpath = osp.join(media_dir, media.game, media.capture_dt)
             ext = '.png' if media.type == 'screenshot' else '.mp4'
-            download_uri(media.sdr_uri, fpath + ext)
+            accmod_dt = datetime.strptime(media.capture_dt, DT_FMT)
+            download_uri(media.sdr_uri, fpath + ext, accmod_dt)
             # If there is an HDR version, download that too.
             if media.hdr_uri != '':
-                download_uri(media.hdr_uri, fpath + '_hdr.jxr')
+                download_uri(media.hdr_uri, fpath + '_hdr.jxr', accmod_dt)
             # Timestamp the download.
             dl_df.loc[media.Index, 'download_dt'] = datetime.now().strftime(DT_FMT)
         # Update the download history with the new media metadata.
