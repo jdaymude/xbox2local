@@ -1,15 +1,15 @@
 # xbox2local
 
 Welcome to **xbox2local**, a command line utility written in Python for downloading all your Xbox [screenshots and game clips](https://support.xbox.com/help/friends-social-activity/share-socialize/capture-game-clips-and-screenshots) to your computer.
-As of this writing, Microsoft only allows automatic uploads of screenshots and game clips to the Xbox network, where [subtle rules](https://support.xbox.com/help/games-apps/my-games-apps/manage-clips-with-upload-studio) dictate how long your content sticks around.
 
 The goal of **xbox2local** is to make the process of saving your screenshots and game clips much faster.
 Each time you run it, it (1) detects all your media on the Xbox network that it hasn't saved before, (2) copies them to a local folder of your choosing, and (3) gives you the option of deleting them from the Xbox network to free up storage.
+I wrote this tool as an alternative to Team Xbox's [ever](https://support.xbox.com/help/games-apps/my-games-apps/manage-clips-with-upload-studio) [changing](https://news.xbox.com/en-us/2022/11/16/xbox-november-2022-update-rolls-out-today/) [capture policies](https://news.xbox.com/en-us/2023/09/27/bonus-xbox-update-for-september/) [and procedures](https://support.xbox.com/en-US/help/games-apps/my-games-apps/back-up-game-clips) so you can keep better control of your content.
 
 
-## A Note on the Xbox November 2022 Update
+## A Note on the Xbox September 2023 Update
 
-As of the [Xbox November 2022 Update](https://news.xbox.com/en-us/2022/11/16/xbox-november-2022-update-rolls-out-today/), Team Xbox has finally provided official support for bulk media backups to OneDrive or external storage in addition to the older clip-by-clip [sharing options](https://support.xbox.com/help/games-apps/my-games-apps/share-clips-xbox-one).
+As of the [Xbox September 2023 Update](https://news.xbox.com/en-us/2023/09/27/bonus-xbox-update-for-september/), clips and screenshots are stored on the Xbox network for 90 days and otherwise you can [back them up to OneDrive or external storage](https://support.xbox.com/en-US/help/games-apps/my-games-apps/back-up-game-clips).
 On your Xbox, navigate to *Captures > Manage > Select all > Upload to OneDrive* or *Copy to external storage*.
 For many casual users, this functionality can (and should!) replace the functionality of the **xbox2local** script.
 For power users, **xbox2local** still offers the following benefits over the native Xbox functionality:
@@ -33,7 +33,7 @@ You will also need the [pandas](https://pandas.pydata.org/), [tqdm](https://gith
 Both Free and Gold accounts are supported.
 
 3. Navigate to [OpenXBL](https://xbl.io/), the API that **xbox2local** uses to interface with the Xbox network to download your media.
-Log in using your Microsoft account.
+Log in using your Microsoft account and verify your OpenXBL account via SMS.
 
 4. On your OpenXBL [profile page](https://xbl.io/profile), scroll down to the box labeled "API KEYS" and press the "Create +" button.
 Copy the newly created API key (a string of letters, numbers, and hyphens) before navigating away from the page.
