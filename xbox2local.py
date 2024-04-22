@@ -5,7 +5,7 @@ xbox2local: Downloads all Xbox screenshots and game captures from the Xbox
 
 import argparse
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 import os.path as osp
@@ -16,7 +16,7 @@ import sys
 from tqdm import tqdm
 
 # Define formats and data types.
-DT_FMT = '%Y-%m-%dT%H-%M-%S'
+DT_FMT = '%Y-%m-%dT%H-%M-%S%z'
 media_cols = ['id', 'game', 'type', 'capture_dt', 'download_dt', 'xboxnetwork',\
               'width', 'height', 'sdr_filesize', 'hdr_filesize']
 Media = namedtuple('Media', media_cols + ['sdr_uri', 'hdr_uri'])
@@ -59,9 +59,9 @@ def make_api_call(api_key, endpoint):
     return http_output, cont_token
 
 
-def fmt_datetime(datestr):
+def fmt_xboxdt(datestr):
     """
-    Reformats a date/time string so that it avoids any special characters.
+    Reformats an Xbox date/time string so that it avoids any special characters.
 
     :param datestr: a string representing a date/time in 'YYYY-mm-dd HH:MM:SSZ',
                     'YYYY-mm-ddTHH:MM:SSZ', or 'YYYY-mm-ddTHH:MM:SS.fffZ' format
@@ -70,7 +70,9 @@ def fmt_datetime(datestr):
     for fmt in ['%Y-%m-%d %H:%M:%SZ', '%Y-%m-%dT%H:%M:%SZ',
                 '%Y-%m-%dT%H:%M:%S.%fZ']:
         try:
-            return datetime.strptime(datestr, fmt).strftime(DT_FMT)
+            dt = datetime.strptime(datestr, fmt)  # Parse date/time string.
+            dt = dt.replace(tzinfo=timezone.utc)  # Mark this date/time in UTC.
+            return dt.strftime(DT_FMT)  # Return formatted date/time string.
         except ValueError:
             pass
     raise ValueError('ERROR: No valid date format for \'' + datestr + '\'')
@@ -157,7 +159,7 @@ if __name__ == '__main__':
                 id=screen['contentId'],
                 game=sanitize_filepath(screen['titleName']),
                 type='screenshot',
-                capture_dt=fmt_datetime(screen['captureDate']),
+                capture_dt=fmt_xboxdt(screen['captureDate']),
                 download_dt='',
                 xboxnetwork=True,
                 width=screen.get('resolutionWidth'),
@@ -190,7 +192,7 @@ if __name__ == '__main__':
                 id=clip['contentId'],
                 game=sanitize_filepath(clip['titleName']),
                 type='gameclip',
-                capture_dt=fmt_datetime(clip['contentSegments'][0]['recordDate']),
+                capture_dt=fmt_xboxdt(clip['contentSegments'][0]['recordDate']),
                 download_dt='',
                 xboxnetwork=True,
                 width=clip.get('resolutionWidth'),
@@ -215,13 +217,13 @@ if __name__ == '__main__':
             # Setup file path and download the SDR version.
             fpath = osp.join(media_dir, media.game, media.capture_dt)
             ext = '.png' if media.type == 'screenshot' else '.mp4'
-            accmod_dt = datetime.strptime(media.capture_dt, DT_FMT)
+            accmod_dt = datetime.strptime(media.capture_dt, DT_FMT).astimezone()
             download_uri(media.sdr_uri, fpath + ext, accmod_dt)
             # If there is an HDR version, download that too.
             if media.hdr_uri != '':
                 download_uri(media.hdr_uri, fpath + '_hdr.jxr', accmod_dt)
             # Timestamp the download.
-            dl_df.loc[media.Index, 'download_dt'] = datetime.now().strftime(DT_FMT)
+            dl_df.loc[media.Index, 'download_dt'] = datetime.now().astimezone().strftime(DT_FMT)
         # Update the download history with the new media metadata.
         history_df = pd.concat([history_df,
                                 dl_df.drop(columns=['sdr_uri', 'hdr_uri'])])
@@ -248,7 +250,8 @@ if __name__ == '__main__':
     # Detect expired game clips on the Xbox network and optionally delete them.
     expclips_df = xnet_df[(xnet_df.type == 'gameclip') &
         (xnet_df.capture_dt.apply(lambda x:
-            (datetime.now() - datetime.strptime(x, DT_FMT)).days > exp_days))]
+            (datetime.now().astimezone() - datetime.strptime(x, DT_FMT)).days
+            > exp_days))]
     if len(expclips_df) > 0:
         tqdm.write(f"The Xbox network is storing {len(expclips_df)} game clips"+
                    ' (' + fmt_sizeof(expclips_df['sdr_filesize'].sum()) + ') ' +
